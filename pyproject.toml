@@ -1,0 +1,27 @@
+
+[project]
+name = "ocpsvg"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "cadquery-ocp ~= 7.7.0",
+    "svgpathtools >= 1.5.1, <2",
+    "svgelements >= 1.9.1, <2",
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "OCP-stubs @ git+https://github.com/CadQuery/OCP-stubs@7.7.0",
+    "pytest",
+]
+
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.coverage.report]
+exclude_also = [
+    "\\s+\\.\\.\\.",
+]
