@@ -256,7 +256,7 @@ def test_empty_paths():
         ),
     ],
 )
-def test_invalid_path(svg_d:str):
+def test_invalid_path(svg_d: str):
     with raises(SyntaxError):
         list(edges_from_svg_path(svg_d))
 
@@ -358,7 +358,7 @@ def test_svg_doc_from_file():
         assert len(imported) == 1
         try:
             os.unlink(f.name)
-        except OSError:
+        except OSError:  # pragma: nocover
             pass
 
 
