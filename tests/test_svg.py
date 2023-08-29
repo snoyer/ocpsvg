@@ -1,3 +1,4 @@
+import os
 import re
 from io import StringIO
 from math import pi
@@ -350,11 +351,15 @@ def test_svg_doc_from_file():
     <path d = "M 1,4 L 16,4 L 16,13 L 1,13 L 1,4 Z"/>
     </svg>
     """
-    with NamedTemporaryFile("w") as f:
+    with NamedTemporaryFile("w", delete=False) as f:
         f.write(svg_src)
-        f.flush()
+        f.close()
         imported = list(import_svg_document(f.name))
         assert len(imported) == 1
+        try:
+            os.unlink(f.name)
+        except OSError:
+            pass
 
 
 def test_svg_doc_path():
