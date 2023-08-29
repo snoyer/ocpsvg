@@ -1,13 +1,14 @@
 import re
 from io import StringIO
 from math import pi
+from tempfile import NamedTemporaryFile
 from typing import Any, Sequence, Union
 
 import pytest
 from OCP.Geom import Geom_BezierCurve, Geom_Curve
 from OCP.gp import gp_Vec
 from OCP.TopoDS import TopoDS_Face, TopoDS_Shape, TopoDS_Wire
-from pytest import approx
+from pytest import approx, raises
 
 from ocpsvg.ocp import (
     PntLike,
@@ -220,6 +221,12 @@ def test_arcs_path_to_wire():
     assert isinstance(res[0], TopoDS_Wire)
 
 
+def test_path_from_segments():
+    res = list(wires_from_svg_path([("M", 0.0, 0.0), ("L", 1.0, 2.0)]))
+    assert len(res) == 1
+    assert isinstance(res[0], TopoDS_Wire)
+
+
 @pytest.mark.parametrize(
     "svg_d",
     [
@@ -237,6 +244,20 @@ def test_empty_paths():
     assert not list(edges_from_svg_path(""))
     assert not list(wires_from_svg_path(""))
     assert not list(faces_from_svg_path(""))
+
+
+@pytest.mark.parametrize(
+    "svg_d",
+    [
+        "M 0,1,2",
+        pytest.param(
+            "M 0,0 N 1,2", marks=pytest.mark.xfail(reason="svgpathtools accepts it")
+        ),
+    ],
+)
+def test_invalid_path(svg_d:str):
+    with raises(SyntaxError):
+        list(edges_from_svg_path(svg_d))
 
 
 @pytest.mark.parametrize(
@@ -321,6 +342,19 @@ def test_path_nesting():
 
     expected_hole_counts = [0, 0, 1, 2]
     assert hole_counts(res) == expected_hole_counts
+
+
+def test_svg_doc_from_file():
+    svg_src = """
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <path d = "M 1,4 L 16,4 L 16,13 L 1,13 L 1,4 Z"/>
+    </svg>
+    """
+    with NamedTemporaryFile("w") as f:
+        f.write(svg_src)
+        f.flush()
+        imported = list(import_svg_document(f.name))
+        assert len(imported) == 1
 
 
 def test_svg_doc_path():
