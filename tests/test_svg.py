@@ -455,7 +455,7 @@ def test_svg_doc_metadata():
 
 def test_svg_nested_use_metadata():
     svg_src = """
-    <svg id="svg1" viewBox="-10 -10 35 30" version='1.1' xmlns='http://www.w3.org/2000/svg'>
+    <svg id="svg1" viewBox="-10 -10 35 30" xmlns='http://www.w3.org/2000/svg'>
     <defs>
     <circle id="circle" cx="0" cy="0" r="5" style="opacity:1" />
     <g id="two-circles">
