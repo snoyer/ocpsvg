@@ -10,6 +10,7 @@ from typing import (
     Literal,
     NamedTuple,
     Optional,
+    Sequence,
     TextIO,
     TypeVar,
     Union,
@@ -82,6 +83,8 @@ def format_svg(path: Iterable[SvgPathCommand], float_format: str = "f") -> str:
 
 
 SvgPathLike = Union[str, Iterable[SvgPathCommand], svgpathtools.Path]
+SvgShape = svgelements.Shape
+SvgParent = Union[svgelements.Group, svgelements.Use]
 
 FaceOrWire = Union[TopoDS_Wire, TopoDS_Face]
 
@@ -112,7 +115,7 @@ def import_svg_document(
     *,
     flip_y: bool = True,
     ignore_visibility: bool = False,
-    metadata: Optional[Callable[[svgelements.Shape], M]],
+    metadata: Optional[Callable[[SvgShape, Sequence[SvgParent]], M]],
 ) -> ItemsFromDocument[tuple[FaceOrWire, M]]:
     ...
 
@@ -132,7 +135,7 @@ def import_svg_document(
     *,
     flip_y: bool = True,
     ignore_visibility: bool = False,
-    metadata: Optional[Callable[[svgelements.Shape], M]] = None,
+    metadata: Optional[Callable[[SvgShape, Sequence[SvgParent]], M]] = None,
 ) -> Union[ItemsFromDocument[tuple[FaceOrWire, M]], ItemsFromDocument[FaceOrWire]]:
     """Import shapes from an SVG document as faces and/or wires.
 
@@ -216,29 +219,36 @@ def import_svg_document(
 
 
 class ColorAndLabel:
-    def __init__(self, element: svgelements.Shape, label_by: str = "id") -> None:
+    def __init__(
+        self, element: SvgShape, parents: Sequence[SvgParent], label_by: str = "id"
+    ) -> None:
+        self.color = self._color(element)
+        self.label = self._label(element, label_by)
+        self.parent_labels = tuple(self._label(parent, label_by) for parent in parents)
+
+    @staticmethod
+    def _color(
+        element: Union[SvgShape, SvgParent]
+    ) -> tuple[float, float, float, float]:
         is_stroked = element.fill.value is None  # type: ignore
         color = element.stroke if is_stroked else element.fill  # type: ignore
         try:
             rgba255 = color.red, color.green, color.blue, color.alpha  # type: ignore
-            rgba1 = tuple(float(v) / 255 for v in rgba255)  # type: ignore
+            return tuple(float(v) / 255 for v in rgba255)  # type: ignore
         except TypeError:
-            rgba1 = 0, 0, 0, 1
+            return 0, 0, 0, 1
 
-        label = ""
-        if label_by:
-            try:
-                label = str(element.values[label_by])  # type: ignore
-            except (KeyError, AttributeError):
-                pass
-
-        self.color: tuple[float, float, float, float] = rgba1
-        self.label = label
+    @staticmethod
+    def _label(element: Union[SvgShape, SvgParent], label_by: str):
+        try:
+            return str(element.values[label_by])  # type: ignore
+        except (KeyError, AttributeError):
+            return ""
 
     @classmethod
     def Label_by(cls, label_by: str = "id"):
-        def f(element: svgelements.Shape):
-            return cls(element, label_by=label_by)
+        def f(element: SvgShape, parents: Sequence[SvgParent]):
+            return cls(element, parents, label_by=label_by)
 
         return f
 
@@ -575,7 +585,7 @@ def polyline_to_svg_path(
 @overload
 def wires_from_svg_document(
     svg_file: Union[str, pathlib.Path, TextIO],
-    metadata_factory: Callable[[svgelements.Shape], M],
+    metadata_factory: Callable[[SvgShape, Sequence[SvgParent]], M],
     *,
     ignore_visibility: bool = False,
 ) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, M]]:
@@ -594,18 +604,18 @@ def wires_from_svg_document(
 
 def wires_from_svg_document(
     svg_file: Union[str, pathlib.Path, TextIO],
-    metadata_factory: Optional[Callable[[svgelements.Shape], M]],
+    metadata_factory: Optional[Callable[[SvgShape, Sequence[SvgParent]], M]],
     *,
     ignore_visibility: bool = False,
 ) -> Union[
     ItemsFromDocument[tuple[list[TopoDS_Wire], bool, M]],
     ItemsFromDocument[tuple[list[TopoDS_Wire], bool, None]],
 ]:
-    elements = find_svg_elements_in_document(
+    elements = find_shapes_svg_in_document(
         svg_file, ignore_visibility=ignore_visibility
     )
 
-    def is_filled(element: svgelements.Shape):
+    def is_filled(element: SvgShape):
         fill = element.fill
         return fill.value is not None  # type: ignore
 
@@ -614,29 +624,39 @@ def wires_from_svg_document(
             (
                 list(wires_from_svg_path(path)),
                 is_filled(source_element),
-                metadata_factory(source_element),
+                metadata_factory(source_element, source_parents),
             )
-            for path, source_element in elements
+            for path, source_element, source_parents in elements
         )
         return ItemsFromDocument(wires, elements.doc_info)
     else:
         wires = (
             (list(wires_from_svg_path(path)), is_filled(source_element), None)
-            for path, source_element in elements
+            for path, source_element, _source_parents in elements
         )
         return ItemsFromDocument(wires, elements.doc_info)
 
 
-def find_svg_elements_in_document(
+def find_shapes_svg_in_document(
     svg_file: Union[str, pathlib.Path, TextIO],
     *,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[tuple[svgpathtools.Path, svgelements.Shape]]:
+) -> ItemsFromDocument[tuple[svgpathtools.Path, SvgShape, tuple[SvgParent, ...]]]:
     def _svgelements_to_svgpathtools(svgelements_path: svgelements.Path):
         """converting segments might be faster than re-parsing maybe?
         but the representations are different (segments vs commands)
         so exchanging via path spec is probably the safest bet."""
         return svgpathtools.Path(str(svgelements_path))
+
+    def walk_svg_element(
+        element: svgelements.SVGElement, parents: tuple[SvgParent, ...] = ()
+    ) -> Iterator[tuple[SvgShape, tuple[SvgParent, ...]]]:
+        if isinstance(element, SvgShape):
+            yield element, parents
+        elif isinstance(element, (svgelements.Group, svgelements.Use)):
+            new_parents = *parents, element
+            for child in element:  # type: ignore
+                yield from walk_svg_element(child, new_parents)  # type: ignore
 
     parsed_svg = svgelements.SVG.parse(  # type: ignore
         resolve_path(svg_file)
@@ -647,7 +667,7 @@ def find_svg_elements_in_document(
     )
 
     def elements():
-        for element in parsed_svg.elements():  # type: ignore
+        for element, parents in walk_svg_element(parsed_svg):  # type: ignore
             if not ignore_visibility:
                 try:
                     visibility = element.values["visibility"]  # type: ignore
@@ -658,13 +678,13 @@ def find_svg_elements_in_document(
 
             if isinstance(element, svgelements.Path):
                 if len(element):
-                    yield _svgelements_to_svgpathtools(element), element
+                    yield _svgelements_to_svgpathtools(element), element, parents
 
             elif isinstance(element, svgelements.Shape):
                 path = svgelements.Path(element)
                 if len(path):
                     path.reify()
-                    yield _svgelements_to_svgpathtools(path), element
+                    yield _svgelements_to_svgpathtools(path), element, parents
 
     doc_info = DocumentInfo(parsed_svg.width, parsed_svg.height)  # type: ignore
     return ItemsFromDocument(elements(), doc_info)
