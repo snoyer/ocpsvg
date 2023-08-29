@@ -453,6 +453,36 @@ def test_svg_doc_metadata():
     assert imported[2][1].color == (0, 0, 0, 1) and imported[2][1].label == ""
 
 
+def test_svg_nested_use_metadata():
+    svg_src = """
+    <svg id="svg1" viewBox="-10 -10 35 30" version='1.1' xmlns='http://www.w3.org/2000/svg'>
+    <defs>
+    <circle id="circle" cx="0" cy="0" r="5" style="opacity:1" />
+    <g id="two-circles">
+        <use href="#circle" id="blue_fill" transform="translate(-6 0)" fill="blue"/>
+        <use href="#circle" id="red_fill" transform="translate(+6 0)" fill="red"/>
+    </g>
+    </defs>
+    <g id="main">
+    <use href="#two-circles" id="white_stroke" transform="translate(5,0)" stroke="white"/>
+    <use href="#two-circles" id="black_stroke" transform="translate(11,10)" stroke="black"/>
+    </g>
+    </svg>"""
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("id")))
+
+    expected = (
+        (("svg1", "main", "white_stroke", "two-circles", "blue_fill"), "circle"),
+        (("svg1", "main", "white_stroke", "two-circles", "red_fill"), "circle"),
+        (("svg1", "main", "black_stroke", "two-circles", "blue_fill"), "circle"),
+        (("svg1", "main", "black_stroke", "two-circles", "red_fill"), "circle"),
+    )
+    assert len(imported) == len(expected)
+    for (_, metadata), (parent_labels, label) in zip(imported, expected):
+        assert metadata.label == label
+        assert metadata.parent_labels == parent_labels
+
+
 def nested_squares_path(count: int, x: float = 0, y: float = 0):
     def parts():
         for s in range(1, count + 1):
