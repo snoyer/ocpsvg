@@ -47,6 +47,7 @@ from OCP.gp import (
 )
 from OCP.ShapeExtend import ShapeExtend_WireData
 from OCP.ShapeFix import ShapeFix_Wire
+from OCP.Standard import Standard_Failure
 from OCP.StdFail import StdFail_NotDone
 from OCP.TColgp import TColgp_Array1OfPnt
 from OCP.TopoDS import (
@@ -304,7 +305,7 @@ CurveOrAdaptor = Union[Geom_Curve, GeomAdaptor_Curve, BRepAdaptor_Curve]
 def segment_curve(start: PntLike, end: PntLike) -> Geom_TrimmedCurve:
     try:
         return GC_MakeSegment(as_Pnt(start), as_Pnt(end)).Value()
-    except StdFail_NotDone as e:
+    except (StdFail_NotDone, Standard_Failure) as e:
         raise ValueError(f"could not make segment curve from {start}, {end}", e)
 
 
