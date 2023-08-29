@@ -464,8 +464,10 @@ def test_svg_nested_use_metadata():
     </g>
     </defs>
     <g id="main">
-    <use href="#two-circles" id="white_stroke" transform="translate(5,0)" stroke="white"/>
-    <use href="#two-circles" id="black_stroke" transform="translate(11,10)" stroke="black"/>
+    <use href="#two-circles" 
+        id="white_stroke" transform="translate(5,0)" stroke="white"/>
+    <use href="#two-circles"
+        id="black_stroke" transform="translate(11,10)" stroke="black"/>
     </g>
     </svg>"""
     buf = StringIO(svg_src)
