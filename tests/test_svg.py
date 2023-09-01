@@ -257,7 +257,7 @@ def test_empty_paths():
     ],
 )
 def test_invalid_path(svg_d: str):
-    with raises(SyntaxError):
+    with raises(ValueError):
         list(edges_from_svg_path(svg_d))
 
 

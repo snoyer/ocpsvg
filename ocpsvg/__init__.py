@@ -1,6 +1,8 @@
 from .svg import (
     ColorAndLabel,
     DocumentInfo,
+    ParentElement,
+    ShapeElement,
     SvgPathCommand,
     curve_to_svg_path,
     edge_to_svg_path,
