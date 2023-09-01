@@ -83,8 +83,8 @@ def format_svg(path: Iterable[SvgPathCommand], float_format: str = "f") -> str:
 
 
 SvgPathLike = Union[str, Iterable[SvgPathCommand], svgpathtools.Path]
-SvgShape = svgelements.Shape
-SvgParent = Union[svgelements.Group, svgelements.Use]
+ShapeElement = svgelements.Shape
+ParentElement = Union[svgelements.Group, svgelements.Use]
 
 FaceOrWire = Union[TopoDS_Wire, TopoDS_Face]
 
@@ -115,7 +115,7 @@ def import_svg_document(
     *,
     flip_y: bool = True,
     ignore_visibility: bool = False,
-    metadata: Optional[Callable[[SvgShape, Sequence[SvgParent]], M]],
+    metadata: Optional[Callable[[ShapeElement, Sequence[ParentElement]], M]],
 ) -> ItemsFromDocument[tuple[FaceOrWire, M]]:
     ...
 
@@ -135,11 +135,11 @@ def import_svg_document(
     *,
     flip_y: bool = True,
     ignore_visibility: bool = False,
-    metadata: Optional[Callable[[SvgShape, Sequence[SvgParent]], M]] = None,
+    metadata: Optional[Callable[[ShapeElement, Sequence[ParentElement]], M]] = None,
 ) -> Union[ItemsFromDocument[tuple[FaceOrWire, M]], ItemsFromDocument[FaceOrWire]]:
     """Import shapes from an SVG document as faces and/or wires.
 
-    Each visible shapes or paths is converted to zero or more Face if it is filled,
+    Each visible shape and path is converted to zero or more Face if it is filled,
     and to zero or more Wire if it is not filled.
 
     This importer does not cover the whole SVG specification,
@@ -157,8 +157,8 @@ def import_svg_document(
     :param ignore_visibility: whether to ignore visibility
         attribute and process hidden elements.
     :param metadata: funtion to generate metadata from the source SVG element
-    :raises SyntaxError:
     :raises IOError:
+    :raises SyntaxError:
     :raises ValueError:
     """
 
@@ -220,7 +220,10 @@ def import_svg_document(
 
 class ColorAndLabel:
     def __init__(
-        self, element: SvgShape, parents: Sequence[SvgParent], label_by: str = "id"
+        self,
+        element: ShapeElement,
+        parents: Sequence[ParentElement],
+        label_by: str = "id",
     ) -> None:
         self.color = self._color(element)
         self.label = self._label(element, label_by)
@@ -228,7 +231,7 @@ class ColorAndLabel:
 
     @staticmethod
     def _color(
-        element: Union[SvgShape, SvgParent]
+        element: Union[ShapeElement, ParentElement]
     ) -> tuple[float, float, float, float]:
         is_stroked = element.fill.value is None  # type: ignore
         color = element.stroke if is_stroked else element.fill  # type: ignore
@@ -239,7 +242,7 @@ class ColorAndLabel:
             return 0, 0, 0, 1
 
     @staticmethod
-    def _label(element: Union[SvgShape, SvgParent], label_by: str):
+    def _label(element: Union[ShapeElement, ParentElement], label_by: str):
         try:
             return str(element.values[label_by])  # type: ignore
         except (KeyError, AttributeError):
@@ -247,7 +250,7 @@ class ColorAndLabel:
 
     @classmethod
     def Label_by(cls, label_by: str = "id"):
-        def f(element: SvgShape, parents: Sequence[SvgParent]):
+        def f(element: ShapeElement, parents: Sequence[ParentElement]):
             return cls(element, parents, label_by=label_by)
 
         return f
@@ -273,6 +276,7 @@ def wires_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Wire]:
     :param SvgPathLike path: input SVG path
     :yield: wires
     :raises SyntaxError:
+    :raises ValueError:
     """
 
     path = _path_from_SvgPathLike(path)
@@ -287,6 +291,7 @@ def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
     :param SvgPathLike path: input SVG path
     :yield: edges
     :raises SyntaxError:
+    :raises ValueError:
     """
 
     path = _path_from_SvgPathLike(path)
@@ -585,7 +590,7 @@ def polyline_to_svg_path(
 @overload
 def wires_from_svg_document(
     svg_file: Union[str, pathlib.Path, TextIO],
-    metadata_factory: Callable[[SvgShape, Sequence[SvgParent]], M],
+    metadata_factory: Callable[[ShapeElement, Sequence[ParentElement]], M],
     *,
     ignore_visibility: bool = False,
 ) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, M]]:
@@ -604,7 +609,7 @@ def wires_from_svg_document(
 
 def wires_from_svg_document(
     svg_file: Union[str, pathlib.Path, TextIO],
-    metadata_factory: Optional[Callable[[SvgShape, Sequence[SvgParent]], M]],
+    metadata_factory: Optional[Callable[[ShapeElement, Sequence[ParentElement]], M]],
     *,
     ignore_visibility: bool = False,
 ) -> Union[
@@ -615,7 +620,7 @@ def wires_from_svg_document(
         svg_file, ignore_visibility=ignore_visibility
     )
 
-    def is_filled(element: SvgShape):
+    def is_filled(element: ShapeElement):
         fill = element.fill
         return fill.value is not None  # type: ignore
 
@@ -641,7 +646,9 @@ def find_shapes_svg_in_document(
     svg_file: Union[str, pathlib.Path, TextIO],
     *,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[tuple[svgpathtools.Path, SvgShape, tuple[SvgParent, ...]]]:
+) -> ItemsFromDocument[
+    tuple[svgpathtools.Path, ShapeElement, tuple[ParentElement, ...]]
+]:
     def _svgelements_to_svgpathtools(svgelements_path: svgelements.Path):
         """converting segments might be faster than re-parsing maybe?
         but the representations are different (segments vs commands)
@@ -649,9 +656,9 @@ def find_shapes_svg_in_document(
         return svgpathtools.Path(str(svgelements_path))
 
     def walk_svg_element(
-        element: svgelements.SVGElement, parents: tuple[SvgParent, ...] = ()
-    ) -> Iterator[tuple[SvgShape, tuple[SvgParent, ...]]]:
-        if isinstance(element, SvgShape):
+        element: svgelements.SVGElement, parents: tuple[ParentElement, ...] = ()
+    ) -> Iterator[tuple[ShapeElement, tuple[ParentElement, ...]]]:
+        if isinstance(element, ShapeElement):
             yield element, parents
         elif isinstance(element, (svgelements.Group, svgelements.Use)):
             new_parents = *parents, element
@@ -706,7 +713,8 @@ def _path_from_SvgPathLike(path: SvgPathLike) -> svgpathtools.Path:
     try:
         return svgpathtools.Path(str(path))
     except Exception:
-        raise SyntaxError(f"could not make svg path from: {path!r}")
+        # TODO proper syntax error, would need to come from within svgpathtools
+        raise ValueError(f"could not make svg path from: {path!r}")
 
 
 def _continuous_subpaths(path: svgpathtools.Path) -> Iterator[svgpathtools.Path]:
