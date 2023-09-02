@@ -43,7 +43,6 @@ from OCP.gp import (
     gp_Pnt,
     gp_Trsf,
     gp_Vec,
-    gp_XYZ,
 )
 from OCP.ShapeExtend import ShapeExtend_WireData
 from OCP.ShapeFix import ShapeFix_Wire
@@ -67,48 +66,10 @@ logger = logging.getLogger(__name__)
 _TOLERANCE = 1e-8
 
 
-#### types
-
-VecLike = Union[
-    gp_Pnt,
-    gp_Vec,
-    gp_XYZ,
-    gp_Dir,
-    tuple[float, float, float],
-    tuple[float, float],
-]
-PntLike = VecLike
-DirLike = VecLike
-
-
-def as_Pnt(p: PntLike) -> gp_Pnt:
-    return p if isinstance(p, gp_Pnt) else gp_Pnt(*as_triple(p))
-
-
-def as_Vec(v: VecLike) -> gp_Vec:
-    return v if isinstance(v, gp_Vec) else gp_Vec(*as_triple(v))
-
-
-def as_Dir(d: DirLike) -> gp_Dir:
-    return d if isinstance(d, gp_Dir) else gp_Dir(*as_triple(d))
-
-
-def as_triple(p: VecLike) -> tuple[float, float, float]:
-    if isinstance(p, (gp_Pnt, gp_Vec, gp_XYZ, gp_Dir)):
-        return p.X(), p.Y(), p.Z()
-    else:
-        if len(p) == 3:
-            return p[:3]
-        elif len(p) == 2:
-            return *p[:2], 0.0
-        else:
-            raise ValueError(f"cannot make point from {p!r}")
-
-
 #### shapes
 
 
-def make_compound(shapes: Iterable[TopoDS_Shape]):
+def make_compound(shapes: Iterable[TopoDS_Shape]) -> TopoDS_Compound:
     compound = TopoDS_Compound()
     comp_builder = TopoDS_Builder()
     comp_builder.MakeCompound(compound)
@@ -134,7 +95,7 @@ def bounding_box(
 
 def topoDS_iterator(
     shape: TopoDS_Shape, with_orientation: bool = True, with_location: bool = True
-):
+) -> Iterator[TopoDS_Shape]:
     iterator = TopoDS_Iterator(shape, with_orientation, with_location)
     while iterator.More():
         yield iterator.Value()
@@ -144,12 +105,12 @@ def topoDS_iterator(
 #### faces
 
 
-def face_outer_wire(face: TopoDS_Face):
+def face_outer_wire(face: TopoDS_Face) -> TopoDS_Wire:
     """Find the outer wire of a face."""
     return BRepTools.OuterWire_s(face)
 
 
-def face_inner_wires(face: TopoDS_Face):
+def face_inner_wires(face: TopoDS_Face) -> list[TopoDS_Wire]:
     """Find the inner wires of a face."""
     outer = face_outer_wire(face)
     return [cast(TopoDS_Wire, w) for w in topoDS_iterator(face) if not w.IsSame(outer)]
@@ -290,7 +251,7 @@ def edge_from_curve(curve: Geom_Curve) -> TopoDS_Edge:
     return BRepBuilderAPI_MakeEdge(curve).Edge()
 
 
-def edge_to_curve(edge: TopoDS_Edge):
+def edge_to_curve(edge: TopoDS_Edge) -> BRepAdaptor_Curve:
     return BRepAdaptor_Curve(edge)
 
 
@@ -302,14 +263,14 @@ BEZIER_MAX_DEGREE = Geom_BezierCurve.MaxDegree_s()
 CurveOrAdaptor = Union[Geom_Curve, GeomAdaptor_Curve, BRepAdaptor_Curve]
 
 
-def segment_curve(start: PntLike, end: PntLike) -> Geom_TrimmedCurve:
+def segment_curve(start: gp_Pnt, end: gp_Pnt) -> Geom_TrimmedCurve:
     try:
-        return GC_MakeSegment(as_Pnt(start), as_Pnt(end)).Value()
+        return GC_MakeSegment(start, end).Value()
     except (StdFail_NotDone, Standard_Failure) as e:
         raise ValueError(f"could not make segment curve from {start}, {end}", e)
 
 
-def bezier_curve(*controls: PntLike) -> Geom_BezierCurve:
+def bezier_curve(*controls: gp_Pnt) -> Geom_BezierCurve:
     n = len(controls)
     if not 2 <= n <= BEZIER_MAX_DEGREE:
         raise ValueError(
@@ -318,7 +279,7 @@ def bezier_curve(*controls: PntLike) -> Geom_BezierCurve:
 
     poles = TColgp_Array1OfPnt(1, n)
     for i, control in enumerate(controls, 1):
-        poles.SetValue(i, as_Pnt(control))
+        poles.SetValue(i, control)
 
     return Geom_BezierCurve(poles)
 
@@ -329,10 +290,10 @@ def circle_curve(
     end_angle: float = 360,
     *,
     clockwise: bool = False,
-    center: VecLike = (0, 0, 0),
-    normal: DirLike = (0, 0, 1),
+    center: gp_Pnt = gp_Pnt(0, 0, 0),
+    normal: gp_Dir = gp_Dir(0, 0, 1),
 ) -> Union[Geom_Circle, Geom_TrimmedCurve]:
-    circle_gp = gp_Circ(gp_Ax2(gp_Pnt(), as_Dir(normal)), radius)
+    circle_gp = gp_Circ(gp_Ax2(gp_Pnt(), normal), radius)
 
     if start_angle == end_angle:
         circle = GC_MakeCircle(circle_gp).Value()
@@ -342,7 +303,7 @@ def circle_curve(
         ).Value()
 
     trsf = gp_Trsf()
-    trsf.SetTranslation(as_Vec(center))
+    trsf.SetTranslation(gp_Vec(center.XYZ()))
     circle.Transform(trsf)
 
     return circle
@@ -356,16 +317,16 @@ def ellipse_curve(
     *,
     clockwise: bool = False,
     rotation: float = 0,
-    center: VecLike = (0, 0, 0),
-    normal: DirLike = (0, 0, 1),
+    center: gp_Pnt = gp_Pnt(0, 0, 0),
+    normal: gp_Dir = gp_Dir(0, 0, 1),
 ) -> Union[Geom_Ellipse, Geom_TrimmedCurve]:
     if minor_radius > major_radius:
         major_radius, minor_radius = minor_radius, major_radius
         rotation += 90
 
-    ellipse_gp = gp_Elips(
-        gp_Ax2(gp_Pnt(), as_Dir(normal)), major_radius, minor_radius
-    ).Rotated(gp_Ax1(), radians(rotation))
+    ellipse_gp = gp_Elips(gp_Ax2(gp_Pnt(), normal), major_radius, minor_radius).Rotated(
+        gp_Ax1(), radians(rotation)
+    )
     if start_angle == end_angle:
         ellipse = GC_MakeEllipse(ellipse_gp).Value()
     else:
@@ -377,7 +338,7 @@ def ellipse_curve(
         ).Value()
 
     trsf = gp_Trsf()
-    trsf.SetTranslation(as_Vec(center))
+    trsf.SetTranslation(gp_Vec(center.XYZ()))
     ellipse.Transform(trsf)
 
     return ellipse
@@ -484,7 +445,9 @@ def curve_to_polyline(
             raise ValueError("could not convert to polyline")
 
 
-def curve_adaptor(curve_or_adaptor: CurveOrAdaptor):
+def curve_adaptor(
+    curve_or_adaptor: CurveOrAdaptor,
+) -> Union[GeomAdaptor_Curve, BRepAdaptor_Curve]:
     return (
         GeomAdaptor_Curve(curve_or_adaptor)
         if isinstance(curve_or_adaptor, Geom_Curve)
