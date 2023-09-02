@@ -296,8 +296,8 @@ def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
 
     path = _path_from_SvgPathLike(path)
 
-    def v(c: complex):
-        return c.real, c.imag
+    def p(c: complex):
+        return gp_Pnt(c.real, c.imag, 0)
 
     def curve_from_segment(
         segment: Union[
@@ -308,30 +308,31 @@ def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
         ]
     ):
         if isinstance(segment, svgpathtools.Line):
-            return segment_curve(v(segment.start), v(segment.end))
+            return segment_curve(p(segment.start), p(segment.end))
         elif isinstance(segment, svgpathtools.QuadraticBezier):
-            return bezier_curve(v(segment.start), v(segment.control), v(segment.end))
+            return bezier_curve(p(segment.start), p(segment.control), p(segment.end))
         elif isinstance(segment, svgpathtools.CubicBezier):
             return bezier_curve(
-                v(segment.start),
-                v(segment.control1),
-                v(segment.control2),
-                v(segment.end),
+                p(segment.start),
+                p(segment.control1),
+                p(segment.control2),
+                p(segment.end),
             )
         elif isinstance(segment, svgpathtools.Arc):
             start_angle = segment.theta
             end_angle = segment.theta + segment.delta
             return ellipse_curve(
-                *v(segment.radius),  # type: ignore
+                segment.radius.real,  # type: ignore
+                segment.radius.imag,  # type: ignore
                 start_angle=min(start_angle, end_angle),
                 end_angle=max(start_angle, end_angle),
                 clockwise=segment.sweep,
-                center=v(segment.center),  # type:ignore
+                center=p(segment.center),  # type:ignore
                 rotation=degrees(segment.phi),
             )
         else:  # pragma: nocover
             logger.warning(f"unexpected segment type: {type(segment)}")
-            return segment_curve(v(segment.start), v(segment.end))
+            return segment_curve(p(segment.start), p(segment.end))
 
     for segment in path:  # type: ignore
         try:

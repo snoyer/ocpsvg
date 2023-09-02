@@ -1,8 +1,9 @@
-from typing import Iterable
+from typing import Iterable, Union
+
 import pytest
-from pytest import raises
 from OCP.Geom import Geom_BezierCurve, Geom_Curve
-from OCP.gp import gp_Pnt
+from OCP.gp import gp_Pnt, gp_Vec
+from pytest import raises
 
 from ocpsvg.ocp import (
     bezier_curve,
@@ -13,29 +14,47 @@ from ocpsvg.ocp import (
     ellipse_curve,
     segment_curve,
 )
-from ocpsvg.ocp import PntLike
+
+XY = tuple[float, float]
+XYZ = tuple[float, float, float]
+
+
+def Pnt(x: float, y: float, z: float = 0):
+    return gp_Pnt(x, y, z)
+
+
+def as_Pnt(xy: XY):
+    return gp_Pnt(*xy, 0)
+
+
+def as_Pnts(*xys: XY):
+    return map(as_Pnt, xys)
+
+
+def as_tuple(v: Union[gp_Pnt, gp_Vec]):
+    return v.X(), v.Y(), v.Z()
 
 
 @pytest.mark.parametrize(
     "a,b",
     [
-        ((0, 0), (1, 0)),
-        ((0, 0), (0, 12)),
-        ((0, 0, 0), (0, 12, 34)),
+        (Pnt(0, 0), Pnt(1, 0)),
+        (Pnt(0, 0), Pnt(0, 12)),
+        (Pnt(0, 0, 0), Pnt(0, 12, 34)),
     ],
 )
-def test_segment_curve(a: PntLike, b: PntLike):
+def test_segment_curve(a: gp_Pnt, b: gp_Pnt):
     assert isinstance(segment_curve(a, b), Geom_Curve)
 
 
 @pytest.mark.parametrize(
     "a,b",
     [
-        ((1, 2), (1, 2)),
-        ((1, 2, 3), (1, 2, 3)),
+        (Pnt(1, 2), Pnt(1, 2)),
+        (Pnt(1, 2, 3), Pnt(1, 2, 3)),
     ],
 )
-def test_segment_curve_invalid(a: PntLike, b: PntLike):
+def test_segment_curve_invalid(a: gp_Pnt, b: gp_Pnt):
     with raises(ValueError):
         assert isinstance(segment_curve(a, b), Geom_Curve)
 
@@ -43,33 +62,35 @@ def test_segment_curve_invalid(a: PntLike, b: PntLike):
 @pytest.mark.parametrize(
     "controls",
     [
-        [(0, 0), (10, 12)],
-        [(0, 1), (1, 2), (3, 4)],
-        [(1, 2, 3), (0, 12, 34)],
+        [Pnt(0, 0), Pnt(10, 12)],
+        [Pnt(0, 1), Pnt(1, 2), Pnt(3, 4)],
+        [Pnt(1, 2, 3), Pnt(0, 12, 34)],
     ],
 )
-def test_bezier_curve(controls: Iterable[PntLike]):
+def test_bezier_curve(controls: Iterable[gp_Pnt]):
     assert isinstance(bezier_curve(*controls), Geom_Curve)
 
 
 @pytest.mark.parametrize(
     "controls",
     [
-        [(1, 2)],
-        [(i, i % 3) for i in range(26)],
+        [Pnt(1, 2)],
+        [Pnt(i, i % 3) for i in range(26)],
     ],
 )
-def test_bezier_curve_invalid(controls: Iterable[PntLike]):
+def test_bezier_curve_invalid(controls: Iterable[gp_Pnt]):
     with raises(ValueError):
         assert isinstance(bezier_curve(*controls), Geom_Curve)
 
 
 VARIOUS_CURVES = [
-    segment_curve((0, 0), (1, 1)),
-    bezier_curve((0, 1), (23, 45), (67, 89)),
-    bezier_curve((0, 1), (23, 45), (66, 89), (101, 213)),
-    bezier_curve((0, 1), (23, 45), (66, 89), (101, 213), (141, 516)),
-    curve_to_bspline(bezier_curve((0, 1), (23, 45), (66, 89), (101, 213), (141, 516))),
+    segment_curve(Pnt(0, 0), Pnt(1, 1)),
+    bezier_curve(Pnt(0, 1), Pnt(23, 45), Pnt(67, 89)),
+    bezier_curve(Pnt(0, 1), Pnt(23, 45), Pnt(66, 89), Pnt(101, 213)),
+    bezier_curve(Pnt(0, 1), Pnt(23, 45), Pnt(66, 89), Pnt(101, 213), Pnt(141, 516)),
+    curve_to_bspline(
+        bezier_curve(Pnt(0, 1), Pnt(23, 45), Pnt(66, 89), Pnt(101, 213), Pnt(141, 516))
+    ),
     circle_curve(12, clockwise=True),
     circle_curve(12, clockwise=False),
     circle_curve(12, 30, 210, clockwise=False),

@@ -6,15 +6,12 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Sequence, Union
 
 import pytest
-from OCP.Geom import Geom_BezierCurve, Geom_Curve
+from OCP.Geom import Geom_Curve
 from OCP.gp import gp_Vec
 from OCP.TopoDS import TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
 
 from ocpsvg.ocp import (
-    PntLike,
-    as_Pnt,
-    as_triple,
     bezier_curve,
     bounding_box,
     circle_curve,
@@ -39,6 +36,7 @@ from ocpsvg.svg import (
 )
 
 from .ocp import face_area, face_normal, wire_from_edges
+from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple
 
 
 class SvgPath(list[SvgPathCommand]):
@@ -55,26 +53,26 @@ class SvgPath(list[SvgPathCommand]):
         ([(0, 1), (2, 3), (2, 5), (5, 5)], True, "M0,1 L 2,3 L 2,5 L 5,5 Z"),
     ],
 )
-def test_polyline_to_svg(points: Sequence[PntLike], closed: bool, svg_d: str):
+def test_polyline_to_svg(points: Sequence[XY], closed: bool, svg_d: str):
     path = SvgPath(polyline_to_svg_path(map(as_Pnt, points), closed=closed))
     assert svg_path_tokens(path) == approx(svg_path_tokens(svg_d), abs=1e-4), str(path)
 
 
 @pytest.mark.parametrize(
-    "bez_curve, svg_d, opts",
+    "points, svg_d, opts",
     [
-        (bezier_curve((0, 1), (2, 3)), "M0,1 L 2,3", {}),
-        (bezier_curve((0, 1), (2, 3), (2, 5)), "M0,1 Q 2,3 2,5", {}),
-        (bezier_curve((0, 1), (2, 3), (2, 5), (5, 5)), "M0,1 C 2,3 2,5 5,5", {}),
+        ([(0, 1), (2, 3)], "M0,1 L 2,3", {}),
+        ([(0, 1), (2, 3), (2, 5)], "M0,1 Q 2,3 2,5", {}),
+        ([(0, 1), (2, 3), (2, 5), (5, 5)], "M0,1 C 2,3 2,5 5,5", {}),
     ],
 )
-def test_bezier_to_svg(bez_curve: Geom_BezierCurve, svg_d: str, opts: dict[str, Any]):
-    path = SvgPath(bezier_to_svg_path(bez_curve, **opts))
+def test_bezier_to_svg(points: Sequence[XY], svg_d: str, opts: dict[str, Any]):
+    path = SvgPath(bezier_to_svg_path(bezier_curve(*as_Pnts(*points)), **opts))
     assert svg_path_tokens(path) == approx(svg_path_tokens(svg_d), abs=1e-4), str(path)
 
 
 def test_bezier_to_svg_error():
-    bez_curve = bezier_curve((0, 1), (2, 3), (2, 5), (5, 5), (10, 5))
+    bez_curve = bezier_curve(*as_Pnts((0, 1), (2, 3), (2, 5), (5, 5), (10, 5)))
     with pytest.raises(ValueError):
         SvgPath(bezier_to_svg_path(bez_curve))
 
@@ -82,14 +80,18 @@ def test_bezier_to_svg_error():
 @pytest.mark.parametrize(
     "curve, svg_d, opts",
     [
-        (segment_curve((0, 1), (2, 3)), "M0,1 L 2,3", {}),
-        (bezier_curve((0, 1), (3, 2), (4, 5)), "M 0,1 Q 3,2,4,5", {}),
+        (segment_curve(*as_Pnts((0, 1), (2, 3))), "M0,1 L 2,3", {}),
+        (bezier_curve(*as_Pnts((0, 1), (3, 2), (4, 5))), "M 0,1 Q 3,2,4,5", {}),
         (
-            bezier_curve((0, 1), (3, 2), (4, 5)),
+            bezier_curve(*as_Pnts((0, 1), (3, 2), (4, 5))),
             "M 0.0,1.0 C 2.0,1.666666,3.333333,3.0,4.0,5.0",
             dict(use_quadratics=False),
         ),
-        (bezier_curve((0, 1), (3, 2), (4, 5), (7, 8)), "M 0,1 C 3,2,4,5,7,8", {}),
+        (
+            bezier_curve(*as_Pnts((0, 1), (3, 2), (4, 5), (7, 8))),
+            "M 0,1 C 3,2,4,5,7,8",
+            {},
+        ),
         (circle_curve(2), "M2,0 A2,2,180,1,1,-2,0 A2,2,180,1,1,2,0", {}),
         (circle_curve(2), "M2,0 A2,2,359.9999,1,0,2,-0", dict(split_full_arcs=False)),
         (circle_curve(2, 90, 180), "M-2.0,0 A2.0,2.0,0.0,0,0,0,2.0", {}),
@@ -107,9 +109,9 @@ def test_edge_to_svg(curve: Geom_Curve, svg_d: str, opts: dict[str, Any]):
 @pytest.mark.parametrize(
     "curve",
     [
-        segment_curve((0, 1), (2, 3)),
-        bezier_curve((0, 1), (3, 2), (4, 5)),
-        bezier_curve((0, 1), (3, 2), (4, 5), (7, 8)),
+        segment_curve(*as_Pnts((0, 1), (2, 3))),
+        bezier_curve(*as_Pnts((0, 1), (3, 2), (4, 5))),
+        bezier_curve(*as_Pnts((0, 1), (3, 2), (4, 5), (7, 8))),
         circle_curve(2),
         circle_curve(2, 90, 180),
         ellipse_curve(3, 1, 90, 180),
@@ -129,12 +131,18 @@ def test_polyline_apprx(curve: Geom_Curve):
     "curves, svg_d, opts",
     [
         (
-            [segment_curve((-1, 4), (0, 1)), bezier_curve((0, 1), (3, 2), (4, 5))],
+            [
+                segment_curve(Pnt(-1, 4), Pnt(0, 1)),
+                bezier_curve(Pnt(0, 1), Pnt(3, 2), Pnt(4, 5)),
+            ],
             "M-1,4 L 0,1" "Q 3,2,4,5",
             {},
         ),
         (
-            [segment_curve((-1, 4), (0, 1)), bezier_curve((0, 1), (3, 2), (4, 5))],
+            [
+                segment_curve(Pnt(-1, 4), Pnt(0, 1)),
+                bezier_curve(Pnt(0, 1), Pnt(3, 2), Pnt(4, 5)),
+            ],
             "M-1,4 L 0,1" "C 2.0,1.666666,3.333333,3.0,4.0,5.0",
             dict(use_quadratics=False),
         ),
@@ -400,7 +408,7 @@ def test_svg_doc_orientation(flip_y: bool):
     assert len(imported) == 1
     for face in imported:
         assert isinstance(face, TopoDS_Face)
-        assert as_triple(face_normal(face)) == approx((0, 0, 1))
+        assert as_tuple(face_normal(face)) == approx((0, 0, 1))
 
 
 @pytest.mark.parametrize("flip_y", [False, True])
@@ -421,8 +429,8 @@ def test_svg_doc_transforms(flip_y: bool):
     def assert_bounds(s1: TopoDS_Shape, s2: TopoDS_Shape):
         b1 = bounding_box(s1)
         b2 = bounding_box(s2)
-        assert as_triple(b1.CornerMin()) == approx(as_triple(b2.CornerMin()))
-        assert as_triple(b1.CornerMax()) == approx(as_triple(b2.CornerMax()))
+        assert as_tuple(b1.CornerMin()) == approx(as_tuple(b2.CornerMin()))
+        assert as_tuple(b1.CornerMax()) == approx(as_tuple(b2.CornerMax()))
 
     first, *others = imported
     for other in others:
@@ -473,7 +481,7 @@ def test_svg_doc_dimensions(flip_y: bool):
 
     bb = bounding_box(imported[0])
     size = gp_Vec(bb.CornerMin(), bb.CornerMax())
-    assert as_triple(size) == approx((50, 25, 0))
+    assert as_tuple(size) == approx((50, 25, 0))
 
 
 def test_svg_doc_metadata():
