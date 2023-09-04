@@ -31,7 +31,7 @@ from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Wire
 from .ocp import (
     CurveOrAdaptor,
     bezier_curve,
-    curve_adaptor,
+    curve_and_adaptor,
     curve_to_beziers,
     curve_to_polyline,
     edge_from_curve,
@@ -433,7 +433,7 @@ def curve_to_svg_path(
     split_full_arcs: bool = True,
     with_first_move: bool = True,
 ) -> Iterable[SvgPathCommand]:
-    adaptor = curve_adaptor(curve_or_adaptor)
+    _curve, adaptor = curve_and_adaptor(curve_or_adaptor)
     curve_type = adaptor.GetType()
 
     try:
