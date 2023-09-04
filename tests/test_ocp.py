@@ -1,7 +1,7 @@
 from typing import Iterable, Union
 
 import pytest
-from OCP.Geom import Geom_BezierCurve, Geom_Curve
+from OCP.Geom import Geom_BezierCurve, Geom_Curve, Geom_TrimmedCurve
 from OCP.gp import gp_Pnt, gp_Vec
 from pytest import raises
 
@@ -100,6 +100,24 @@ VARIOUS_CURVES = [
     ellipse_curve(12, 34, 30, 210, clockwise=False),
     ellipse_curve(12, 34, 30, 210, clockwise=True),
 ]
+
+
+@pytest.mark.parametrize("curve", VARIOUS_CURVES)
+def test_curve_to_beziers(curve: Geom_Curve):
+    tol = 1e-8
+    bezs = list(curve_to_beziers(curve, tolerance=tol))
+    assert bezs[0].StartPoint().IsEqual(curve.Value(curve.FirstParameter()), tol)
+    assert bezs[-1].EndPoint().IsEqual(curve.Value(curve.LastParameter()), tol)
+
+
+@pytest.mark.parametrize("curve", VARIOUS_CURVES)
+def test_trimmed_curve_to_beziers(curve: Geom_Curve):
+    u, v = curve.FirstParameter(), curve.LastParameter()
+    trimmed = Geom_TrimmedCurve(curve, u + (v - u) * 0.25, u + (v - u) * 0.75)
+    tol = 1e-8
+    bezs = list(curve_to_beziers(trimmed, tolerance=tol))
+    assert bezs[0].StartPoint().IsEqual(trimmed.Value(trimmed.FirstParameter()), tol)
+    assert bezs[-1].EndPoint().IsEqual(trimmed.Value(trimmed.LastParameter()), tol)
 
 
 @pytest.mark.parametrize("curve", VARIOUS_CURVES)

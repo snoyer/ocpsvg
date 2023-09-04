@@ -355,16 +355,17 @@ def curve_to_beziers(
     max_degree: int = 3,
     max_segments: int = 100,
 ) -> Iterator[Geom_BezierCurve]:
-    adaptor = curve_adaptor(curve_or_adaptor)
+    curve, adaptor = curve_and_adaptor(curve_or_adaptor)
     curve_type = adaptor.GetType()
 
     if curve_type == GeomAbs_CurveType.GeomAbs_Line:
         start = adaptor.Value(adaptor.FirstParameter())
-        end = adaptor.Value(adaptor.FirstParameter())
+        end = adaptor.Value(adaptor.LastParameter())
         yield bezier_curve(start, end)
 
     elif curve_type == GeomAbs_CurveType.GeomAbs_BezierCurve:
-        bezier = adaptor.Bezier()
+        bezier = cast(Geom_BezierCurve, adaptor.Bezier().Copy())
+        bezier.Segment(adaptor.FirstParameter(), adaptor.LastParameter())
         if bezier.Degree() > max_degree or bezier.IsRational():
             yield from bspline_to_beziers(
                 curve_to_bspline(bezier),
@@ -377,20 +378,15 @@ def curve_to_beziers(
 
     elif curve_type == GeomAbs_CurveType.GeomAbs_BSplineCurve:
         yield from bspline_to_beziers(
-            adaptor.BSpline(),
+            curve_to_bspline(curve),
             max_degree=max_degree,
             max_segments=max_segments,
             tolerance=tolerance,
         )
 
     else:
-        curve_or_adaptor = (
-            adaptor.Curve()
-            if isinstance(adaptor, GeomAdaptor_Curve)
-            else adaptor.Curve().Curve()
-        )
         yield from bspline_to_beziers(
-            GeomConvert.CurveToBSplineCurve_s(curve_or_adaptor),  # type: ignore
+            curve_to_bspline(curve),
             max_degree=max_degree,
             max_segments=max_segments,
             tolerance=tolerance,
@@ -404,6 +400,8 @@ def bspline_to_beziers(
     max_degree: int = 3,
     max_segments: int = 100,
 ) -> Iterator[Geom_BezierCurve]:
+    bspline = cast(Geom_BSplineCurve, bspline.Copy())
+    bspline.Segment(bspline.FirstParameter(), bspline.LastParameter())
     if bspline.Degree() > 3 or bspline.IsRational():
         approx = GeomConvert_ApproxCurve(
             bspline,
@@ -427,7 +425,7 @@ def curve_to_polyline(
     *,
     tolerance: float,
 ) -> Iterator[gp_Pnt]:
-    adaptor = curve_adaptor(curve_or_adaptor)
+    _curve, adaptor = curve_and_adaptor(curve_or_adaptor)
 
     start = adaptor.FirstParameter()
     end = adaptor.LastParameter()
@@ -445,11 +443,15 @@ def curve_to_polyline(
             raise ValueError("could not convert to polyline")
 
 
-def curve_adaptor(
+def curve_and_adaptor(
     curve_or_adaptor: CurveOrAdaptor,
-) -> Union[GeomAdaptor_Curve, BRepAdaptor_Curve]:
-    return (
-        GeomAdaptor_Curve(curve_or_adaptor)
-        if isinstance(curve_or_adaptor, Geom_Curve)
-        else curve_or_adaptor
-    )
+) -> tuple[Geom_Curve, GeomAdaptor_Curve]:
+    if isinstance(curve_or_adaptor, Geom_Curve):
+        return curve_or_adaptor, GeomAdaptor_Curve(curve_or_adaptor)
+    elif isinstance(curve_or_adaptor, GeomAdaptor_Curve):
+        return curve_or_adaptor.Curve(), curve_or_adaptor
+    elif isinstance(curve_or_adaptor, BRepAdaptor_Curve):
+        adaptor = curve_or_adaptor.Curve()
+        return adaptor.Curve(), adaptor
+    else:
+        raise TypeError()
