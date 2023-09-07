@@ -377,8 +377,10 @@ def curve_to_beziers(
             yield bezier
 
     elif curve_type == GeomAbs_CurveType.GeomAbs_BSplineCurve:
+        bspline = cast(Geom_BSplineCurve, adaptor.BSpline().Copy())
+        bspline.Segment(adaptor.FirstParameter(), adaptor.LastParameter())
         yield from bspline_to_beziers(
-            curve_to_bspline(curve),
+            bspline,
             max_degree=max_degree,
             max_segments=max_segments,
             tolerance=tolerance,
@@ -445,13 +447,12 @@ def curve_to_polyline(
 
 def curve_and_adaptor(
     curve_or_adaptor: CurveOrAdaptor,
-) -> tuple[Geom_Curve, GeomAdaptor_Curve]:
+) -> tuple[Geom_Curve, Union[GeomAdaptor_Curve, BRepAdaptor_Curve]]:
     if isinstance(curve_or_adaptor, Geom_Curve):
         return curve_or_adaptor, GeomAdaptor_Curve(curve_or_adaptor)
     elif isinstance(curve_or_adaptor, GeomAdaptor_Curve):
         return curve_or_adaptor.Curve(), curve_or_adaptor
     elif isinstance(curve_or_adaptor, BRepAdaptor_Curve):
-        adaptor = curve_or_adaptor.Curve()
-        return adaptor.Curve(), adaptor
+        return curve_or_adaptor.Curve().Curve(), curve_or_adaptor
     else:
         raise TypeError()
