@@ -348,7 +348,7 @@ class _SegmentInPath:
         self.path = path
 
     def __str__(self) -> str:
-        return f"{type(self.segment).__name__,} segment in {self.path.d()}"
+        return f"{type(self.segment).__name__} segment in {self.path.d()}"
 
 
 ####
