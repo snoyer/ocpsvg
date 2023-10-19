@@ -531,6 +531,20 @@ def test_svg_nested_use_metadata():
         assert metadata.label == label
         assert metadata.parent_labels == parent_labels
 
+def test_filled_but_not_a_face():
+    """This path is filled shape as per the style but actually just a line segment
+    so we can't make a valid face out of it"""
+    svg_src = """
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <path d="M 24.281485,56.183336 H 177.76774"
+        style="fill:#800000;stroke-width:0.264583"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf))
+    assert len(imported) == 1
+    assert isinstance(imported[0], TopoDS_Wire)
+   
 
 def nested_squares_path(count: int, x: float = 0, y: float = 0):
     def parts():
