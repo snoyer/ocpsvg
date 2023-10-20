@@ -531,6 +531,7 @@ def test_svg_nested_use_metadata():
         assert metadata.label == label
         assert metadata.parent_labels == parent_labels
 
+
 def test_filled_but_not_a_face():
     """This path is filled shape as per the style but actually just a line segment
     so we can't make a valid face out of it"""
@@ -544,7 +545,39 @@ def test_filled_but_not_a_face():
     imported = list(import_svg_document(buf))
     assert len(imported) == 1
     assert isinstance(imported[0], TopoDS_Wire)
-   
+
+
+def test_filled_but_not_a_face_coplanar_segments():
+    """This path is filled shape as per the style but actually 2 line segments
+    so we can't make a valid face out of it"""
+    svg_src = """
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <path d="M 0,0 L 10,0 M 0,10 L 10,10"
+        style="fill:#800000;stroke-width:0.264583"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf))
+    assert len(imported) == 2
+    assert isinstance(imported[0], TopoDS_Wire)
+    assert isinstance(imported[1], TopoDS_Wire)
+
+
+def test_filled_but_not_a_face_coaxial_segments():
+    """This path is filled shape as per the style but actually 2 coaxial line segments
+    so we can't make a valid face out of it"""
+    svg_src = """
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <path d="M 0,0 L 10,0 M 20,0 L 30,10"
+        style="fill:#800000;stroke-width:0.264583"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf))
+    assert len(imported) == 2
+    assert isinstance(imported[0], TopoDS_Wire)
+    assert isinstance(imported[1], TopoDS_Wire)
+
 
 def nested_squares_path(count: int, x: float = 0, y: float = 0):
     def parts():
