@@ -30,7 +30,7 @@ from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Wire
 
 from .ocp import (
     CurveOrAdaptor,
-    WiresNotCoplanar,
+    InvalidWiresForFace,
     bezier_curve,
     curve_and_adaptor,
     curve_to_beziers,
@@ -189,7 +189,7 @@ def import_svg_document(
         if is_filled:
             try:
                 yield from faces_from_wire_soup(wires)
-            except WiresNotCoplanar:
+            except InvalidWiresForFace:
                 logger.warning("filled shape could not be converted to face")  # TODO
                 yield from wires
         else:

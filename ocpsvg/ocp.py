@@ -128,7 +128,7 @@ def face_from_wires(
     return face_builder.Face()
 
 
-class WiresNotCoplanar(ValueError):
+class InvalidWiresForFace(ValueError):
     pass
 
 
@@ -136,8 +136,13 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
     """Make faces from unorganized, possibly nested (but non-intersecting) wires."""
 
     wires = list(wires)
+
+    for wire in wires:
+        if not are_wires_coplanar([wire]):
+            raise InvalidWiresForFace("invalid wire")
+
     if not are_wires_coplanar(wires):
-        raise WiresNotCoplanar()
+        raise InvalidWiresForFace("wires are not coplanar")
 
     def fix_wires():
         for wire in wires:
