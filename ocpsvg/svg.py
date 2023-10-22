@@ -26,7 +26,7 @@ from OCP.GeomAbs import GeomAbs_CurveType
 from OCP.GeomAdaptor import GeomAdaptor_Curve
 from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.StdFail import StdFail_NotDone
-from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Wire
+from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 
 from .ocp import (
     CurveOrAdaptor,
@@ -230,21 +230,32 @@ class ColorAndLabel:
         parents: Sequence[ParentElement],
         label_by: str = "id",
     ) -> None:
-        self.color = self._color(element)
+        self.fill_color = self._color(element.fill)
+        self.stroke_color = self._color(element.stroke) or (0, 0, 0, 1)
         self.label = self._label(element, label_by)
         self.parent_labels = tuple(self._label(parent, label_by) for parent in parents)
 
+    def color_for(self, shape: TopoDS_Shape):
+        """Fill color if shape should be filled stroke color otherwise."""
+        filled = not isinstance(shape, (TopoDS_Wire, TopoDS_Edge))
+        return self.fill_color if filled and self.fill_color else self.stroke_color
+
+    @property
+    def color(self):
+        """Fill color if any, stroke color otherwise.
+        For backwards compatibility, use `color_for(shape) instead."""
+        return self.fill_color if self.fill_color else self.stroke_color
+
     @staticmethod
     def _color(
-        element: Union[ShapeElement, ParentElement]
-    ) -> tuple[float, float, float, float]:
-        is_stroked = element.fill.value is None  # type: ignore
-        color = element.stroke if is_stroked else element.fill  # type: ignore
-        try:
-            rgba255 = color.red, color.green, color.blue, color.alpha  # type: ignore
-            return tuple(float(v) / 255 for v in rgba255)  # type: ignore
-        except TypeError:
-            return 0, 0, 0, 1
+        color: Union[svgelements.Color, None]
+    ) -> Union[tuple[float, float, float, float], None]:
+        if color and color.value:
+            try:
+                rgba255 = color.red, color.green, color.blue, color.alpha  # type: ignore
+                return tuple(float(v) / 255 for v in rgba255)  # type: ignore
+            except TypeError:
+                return 0, 0, 0, 1
 
     @staticmethod
     def _label(element: Union[ShapeElement, ParentElement], label_by: str):
