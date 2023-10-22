@@ -484,6 +484,25 @@ def test_svg_doc_dimensions(flip_y: bool):
     assert as_tuple(size) == approx((50, 25, 0))
 
 
+def test_svg_doc_metadata_legacy():
+    svg_src = """
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <rect width="5" height="10" class="blue" fill="none" stroke="#0000ff"/>
+    <rect width="8" height="4" class="red" fill="#ff0000"/>
+    <rect width="12" height="3"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("class")))
+    assert [
+        (metadata.label, metadata.color) for shape, metadata in imported
+    ] == [
+        ("blue", (0, 0, 1, 1)),
+        ("red", (1, 0, 0, 1)),
+        ("", (0, 0, 0, 1)),
+    ]
+
+
 def test_svg_doc_metadata():
     svg_src = """
     <svg xmlns="http://www.w3.org/2000/svg">
@@ -494,10 +513,13 @@ def test_svg_doc_metadata():
     """
     buf = StringIO(svg_src)
     imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("class")))
-    assert len(imported) == 3
-    assert imported[0][1].color == (0, 0, 1, 1) and imported[0][1].label == "blue"
-    assert imported[1][1].color == (1, 0, 0, 1) and imported[1][1].label == "red"
-    assert imported[2][1].color == (0, 0, 0, 1) and imported[2][1].label == ""
+    assert [
+        (metadata.label, metadata.color_for(shape)) for shape, metadata in imported
+    ] == [
+        ("blue", (0, 0, 1, 1)),
+        ("red", (1, 0, 0, 1)),
+        ("", (0, 0, 0, 1)),
+    ]
 
 
 def test_svg_nested_use_metadata():
@@ -545,6 +567,22 @@ def test_filled_but_not_a_face():
     imported = list(import_svg_document(buf))
     assert len(imported) == 1
     assert isinstance(imported[0], TopoDS_Wire)
+
+
+def test_filled_but_not_a_face_metadata():
+    """This path is filled shape as per the style but actually just a line segment
+    so we can't make a valid face out of it"""
+    svg_src = """
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <path d="M 1,2 H 3"
+        style="fill:red;stroke:blue"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf, metadata=ColorAndLabel))
+    assert len(imported) == 1
+    assert isinstance(imported[0][0], TopoDS_Wire)
+    assert imported[0][1].color_for(imported[0][0]) == (0, 0, 1, 1)
 
 
 def test_filled_but_not_a_face_coplanar_segments():
