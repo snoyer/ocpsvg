@@ -4,7 +4,7 @@ name = "ocpsvg"
 version = "0.1.0"
 requires-python = ">=3.9"
 dependencies = [
-    "cadquery-ocp ~= 7.7.0",
+    "cadquery-ocp >= 7.7.0",
     "svgpathtools >= 1.5.1, <2",
     "svgelements >= 1.9.1, <2",
 ]
