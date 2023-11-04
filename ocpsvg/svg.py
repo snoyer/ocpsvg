@@ -243,17 +243,17 @@ class ColorAndLabel:
     @property
     def color(self):
         """Fill color if any, stroke color otherwise.
-        For backwards compatibility, use `color_for(shape) instead."""
+        For backwards compatibility, use `color_for(shape)` instead."""
         return self.fill_color if self.fill_color else self.stroke_color
 
     @staticmethod
     def _color(
         color: Union[svgelements.Color, None]
     ) -> Union[tuple[float, float, float, float], None]:
-        if color and color.value:
+        if color and color.value:  # type: ignore
             try:
-                rgba255 = color.red, color.green, color.blue, color.alpha  # type: ignore
-                return tuple(float(v) / 255 for v in rgba255)  # type: ignore
+                rgba = color.red, color.green, color.blue, color.alpha  # type: ignore
+                return tuple(float(v) / 255 for v in rgba)  # type: ignore
             except TypeError:
                 return 0, 0, 0, 1
 
