@@ -113,7 +113,7 @@ def face_outer_wire(face: TopoDS_Face) -> TopoDS_Wire:
 def face_inner_wires(face: TopoDS_Face) -> list[TopoDS_Wire]:
     """Find the inner wires of a face."""
     outer = face_outer_wire(face)
-    return [cast(TopoDS_Wire, w) for w in topoDS_iterator(face) if not w.IsSame(outer)]
+    return [TopoDS.Wire_s(w) for w in topoDS_iterator(face) if not w.IsSame(outer)]
 
 
 def face_from_wires(
