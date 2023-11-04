@@ -51,6 +51,7 @@ __all__ = [
     "faces_from_svg_path",
     "wires_from_svg_path",
     "edges_from_svg_path",
+    "continuous_edges_from_svg_path",
     "face_to_svg_path",
     "wire_to_svg_path",
     "edge_to_svg_path",
@@ -295,10 +296,8 @@ def wires_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Wire]:
     :raises ValueError:
     """
 
-    path = _path_from_SvgPathLike(path)
-    for subpath in _continuous_subpaths(path):
-        is_closed = bool(subpath.isclosed())  # type: ignore
-        yield wire_from_continuous_edges(edges_from_svg_path(subpath), closed=is_closed)
+    for edges, closed in continuous_edges_from_svg_path(path):
+        yield wire_from_continuous_edges(edges, closed=closed)
 
 
 def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
@@ -309,9 +308,13 @@ def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
     :raises SyntaxError:
     :raises ValueError:
     """
+    for edges, _ in continuous_edges_from_svg_path(path):
+        yield from edges
 
-    path = _path_from_SvgPathLike(path)
 
+def continuous_edges_from_svg_path(
+    path: SvgPathLike,
+) -> Iterable[tuple[Iterable[TopoDS_Edge], bool]]:
     def p(c: complex):
         return gp_Pnt(c.real, c.imag, 0)
 
@@ -350,12 +353,28 @@ def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
             logger.warning(f"unexpected segment type: {type(segment)}")
             return segment_curve(p(segment.start), p(segment.end))
 
-    for segment in path:  # type: ignore
-        try:
-            curve = curve_from_segment(segment)  # type: ignore
-            yield edge_from_curve(curve)
-        except (StdFail_NotDone, ValueError):
-            logger.debug("invalid %s", _SegmentInPath(segment, path))
+    def edges_from_path(
+        path: svgpathtools.Path,
+        is_closed: bool,
+        closing_segment_threshold: float = 1e-10,
+    ):
+        last_i = len(path) - 1
+        for i, segment in enumerate(path):  # type: ignore
+            try:
+                if not (
+                    is_closed
+                    and i == last_i
+                    and isinstance(segment, svgpathtools.Line)
+                    and segment.length() < closing_segment_threshold  # type: ignore
+                ):
+                    curve = curve_from_segment(segment)  # type: ignore
+                    yield edge_from_curve(curve)
+            except (StdFail_NotDone, ValueError):
+                logger.debug("invalid %s", _SegmentInPath(segment, path))
+
+    path = _path_from_SvgPathLike(path)
+    for subpath, closed in _continuous_subpaths(path):
+        yield edges_from_path(subpath, closed), closed
 
 
 class _SegmentInPath:
@@ -670,7 +689,9 @@ def find_shapes_svg_in_document(
         """converting segments might be faster than re-parsing maybe?
         but the representations are different (segments vs commands)
         so exchanging via path spec is probably the safest bet."""
-        return svgpathtools.Path(str(svgelements_path))
+
+        d_string = svgelements_path.d(relative=False)  # type: ignore
+        return svgpathtools.Path(d_string)
 
     def walk_svg_element(
         element: svgelements.SVGElement, parents: tuple[ParentElement, ...] = ()
@@ -734,8 +755,11 @@ def _path_from_SvgPathLike(path: SvgPathLike) -> svgpathtools.Path:
         raise ValueError(f"could not make svg path from: {path!r}")
 
 
-def _continuous_subpaths(path: svgpathtools.Path) -> Iterator[svgpathtools.Path]:
+def _continuous_subpaths(
+    path: svgpathtools.Path,
+) -> Iterator[tuple[svgpathtools.Path, bool]]:
     subpaths: list[svgpathtools.Path] = path.continuous_subpaths()
     for subpath in subpaths:
         if subpath:
-            yield subpath
+            is_closed = bool(subpath.isclosedac())  # type: ignore
+            yield subpath, is_closed

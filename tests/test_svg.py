@@ -6,9 +6,11 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Sequence, Union
 
 import pytest
+import svgpathtools
 from OCP.Geom import Geom_Curve
+from OCP.GeomAbs import GeomAbs_CurveType
 from OCP.gp import gp_Vec
-from OCP.TopoDS import TopoDS_Face, TopoDS_Shape, TopoDS_Wire
+from OCP.TopoDS import TopoDS, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
 
 from ocpsvg.ocp import (
@@ -16,10 +18,12 @@ from ocpsvg.ocp import (
     bounding_box,
     circle_curve,
     edge_from_curve,
+    edge_to_curve,
     ellipse_curve,
     face_inner_wires,
     is_wire_closed,
     segment_curve,
+    topoDS_iterator,
 )
 from ocpsvg.svg import (
     ColorAndLabel,
@@ -28,6 +32,7 @@ from ocpsvg.svg import (
     edge_to_svg_path,
     edges_from_svg_path,
     faces_from_svg_path,
+    find_shapes_svg_in_document,
     format_svg,
     import_svg_document,
     polyline_to_svg_path,
@@ -494,9 +499,7 @@ def test_svg_doc_metadata_legacy():
     """
     buf = StringIO(svg_src)
     imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("class")))
-    assert [
-        (metadata.label, metadata.color) for shape, metadata in imported
-    ] == [
+    assert [(metadata.label, metadata.color) for _shape, metadata in imported] == [
         ("blue", (0, 0, 1, 1)),
         ("red", (1, 0, 0, 1)),
         ("", (0, 0, 0, 1)),
@@ -615,6 +618,54 @@ def test_filled_but_not_a_face_coaxial_segments():
     assert len(imported) == 2
     assert isinstance(imported[0], TopoDS_Wire)
     assert isinstance(imported[1], TopoDS_Wire)
+
+
+def test_fix_svgpathtools_closing_lines_doc():
+    """This path used to get an extremenly short closing line segment
+    when converted from `svgpathelements` to `svgpathtools`.
+    (fixed by converting through absolute path string)"""
+    svg_src = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+    <svg xmlns="http://www.w3.org/2000/svg"
+    width="22.693mm"
+    height="1.6272mm"
+    viewBox="0 0 22.693 1.6272"
+    >
+    <path d="m 7.87394,0.171449 c -0.022225,0 -0.041275,-0.007937 -0.05715,-0.023812
+    -0.015875,-0.0158747 -0.023813,-0.035454 -0.023813,-0.058738 0,-0.023284
+    0.00794,-0.042334 0.023813,-0.05715 0.015875,-0.01587467 0.034925,-0.023812
+    0.05715,-0.023812 0.022225,0 0.041275,0.00793733 0.05715,0.023812
+    0.015875,0.01481667 0.023813,0.03386667 0.023813,0.05715 0,0.02328333
+    -0.00794,0.04286267 -0.023813,0.058738 -0.015875,0.0158753
+    -0.034925,0.0238127 -0.05715,0.023812 z"/>
+    </svg>
+    """
+    for path, _, _ in find_shapes_svg_in_document(StringIO(svg_src)):
+        for segment in path:
+            assert not isinstance(segment, svgpathtools.Line)
+
+
+def test_fix_svgpathtools_closing_lines_str():
+    """`svgpathtools` adds an extremenly short closing line segment to this path.
+    We want it ignored when converting to edges."""
+    d = (
+        "m 7.87394425193,0.171449092582 c -0.0222250120015,0 "
+        "-0.0412750222885,-0.00793700428598 -0.057150030861,-0.0238120128585 c "
+        "-0.0158750085725,-0.0158747085723 -0.023813012859,-0.0354540191452 "
+        "-0.023813012859,-0.0587380317185 c 0,-0.0232840125734 "
+        "0.0079400042876,-0.0423340228604 0.023813012859,-0.057150030861 c "
+        "0.0158750085725,-0.0158746785723 0.0349250188595,-0.0238120128585 "
+        "0.057150030861,-0.0238120128585 c 0.0222250120015,0 "
+        "0.0412750222885,0.00793733428616 0.057150030861,0.0238120128585 c "
+        "0.0158750085725,0.014816678001 0.023813012859,0.033866688288 "
+        "0.023813012859,0.057150030861 c 0,0.023283342573 "
+        "-0.0079400042876,0.0428626931458 -0.023813012859,0.0587380317185 c "
+        "-0.0158750085725,0.0158753085727 -0.0349250188595,0.0238127128589 "
+        "-0.057150030861,0.0238120128585 z"
+    )
+    for wire in wires_from_svg_path(d):
+        for edge in topoDS_iterator(wire):
+            curve = edge_to_curve(TopoDS.Edge_s(edge))
+            assert curve.GetType() != GeomAbs_CurveType.GeomAbs_Line
 
 
 def nested_squares_path(count: int, x: float = 0, y: float = 0):
