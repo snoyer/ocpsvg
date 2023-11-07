@@ -45,7 +45,7 @@ from OCP.gp import (
     gp_Vec,
 )
 from OCP.ShapeExtend import ShapeExtend_WireData
-from OCP.ShapeFix import ShapeFix_Wire
+from OCP.ShapeFix import ShapeFix_Face, ShapeFix_Wire
 from OCP.Standard import Standard_Failure
 from OCP.StdFail import StdFail_NotDone
 from OCP.TColgp import TColgp_Array1OfPnt
@@ -125,7 +125,9 @@ def face_from_wires(
         for inner_wire in inner_wires:
             face_builder.Add(inner_wire)
 
-    return face_builder.Face()
+    face_fix = ShapeFix_Face(face_builder.Face())
+    face_fix.FixOrientation()
+    return face_fix.Face()
 
 
 class InvalidWiresForFace(ValueError):
