@@ -1,13 +1,8 @@
-from typing import Iterable
-
-from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
 from OCP.BRepGProp import BRepGProp, BRepGProp_Face
 from OCP.BRepTools import BRepTools
 from OCP.gp import gp_Pnt, gp_Vec
 from OCP.GProp import GProp_GProps
-from OCP.TopoDS import TopoDS_Edge, TopoDS_Face, TopoDS_Wire
-
-from ocpsvg.ocp import closed_wire
+from OCP.TopoDS import TopoDS_Face
 
 
 def face_area(face: TopoDS_Face):
@@ -27,19 +22,3 @@ def face_normal_at_uv(face: TopoDS_Face, u: float, v: float) -> gp_Vec:
     normal = gp_Vec()
     BRepGProp_Face(face).Normal(u, v, gp_pnt, normal)
     return normal
-
-
-def wire_from_edges(
-    edges: Iterable[TopoDS_Edge], *, closed: bool = False
-) -> TopoDS_Wire:
-    """Make a single wire from edges using `BRepBuilderAPI_MakeWire`."""
-    builder = BRepBuilderAPI_MakeWire()
-    for edge in edges:
-        builder.Add(edge)
-
-    builder.Build()  # type: ignore
-    if builder.IsDone():
-        wire = builder.Wire()
-        return closed_wire(wire) if closed else wire
-    else:
-        raise ValueError("could not build wire from edges")

@@ -14,9 +14,11 @@ from ocpsvg.ocp import (
     edge_from_curve,
     ellipse_curve,
     faces_from_wire_soup,
+    is_wire_closed,
     segment_curve,
+    wire_from_continuous_edges,
 )
-from tests.ocp import wire_from_edges, face_area
+from tests.ocp import face_area
 
 XY = tuple[float, float]
 XYZ = tuple[float, float, float]
@@ -144,6 +146,17 @@ def test_curve_to_polyline(curve: Geom_Curve):
     assert all(isinstance(p, gp_Pnt) for p in curve_to_polyline(curve, tolerance=1e-5))
 
 
+def test_is_wire_closed():
+    a = gp_Pnt(0, 0, 0)
+    b = gp_Pnt(10, 0, 0)
+    c = gp_Pnt(10, 10, 0)
+    d = gp_Pnt(0, 10, 0)
+    assert not is_wire_closed(polyline_wire(a, b, c, d))
+    assert not is_wire_closed(polyline_wire(a, b, c))
+    assert is_wire_closed(polyline_wire(a, b, c, a))
+    assert is_wire_closed(polyline_wire(a, b, c, d, a))
+
+
 def test_face_from_wire_soup_winding():
     a = gp_Pnt(0, 0, 0)
     b = gp_Pnt(10, 0, 0)
@@ -155,16 +168,21 @@ def test_face_from_wire_soup_winding():
     g = gp_Pnt(7, 7, 0)
     h = gp_Pnt(2, 7, 0)
 
-    def ring(*points: gp_Pnt):
-        return wire_from_edges(
-            edge_from_curve(segment_curve(*ij))
-            for ij in zip(points, points[1:] + points[:1])
-        )
-
     def faces_area_from_rings(*rings: list[gp_Pnt]):
-        return [face_area(f) for f in faces_from_wire_soup(ring(*r) for r in rings)]
+        return [
+            face_area(f)
+            for f in faces_from_wire_soup(polyline_wire(*r, r[0]) for r in rings)
+        ]
 
+    assert faces_area_from_rings([a, b, c, d]) == approx([100.0])
+    assert faces_area_from_rings([d, c, b, a]) == approx([100.0])
     assert faces_area_from_rings([a, b, c, d], [e, f, g, h]) == approx([75.0])
     assert faces_area_from_rings([a, b, c, d], [h, g, f, e]) == approx([75.0])
     assert faces_area_from_rings([d, c, b, a], [e, f, g, h]) == approx([75.0])
     assert faces_area_from_rings([d, c, b, a], [h, g, f, e]) == approx([75.0])
+
+
+def polyline_wire(*points: gp_Pnt):
+    return wire_from_continuous_edges(
+        edge_from_curve(segment_curve(p, q)) for p, q in zip(points, points[1:])
+    )
