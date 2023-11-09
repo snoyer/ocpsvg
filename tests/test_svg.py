@@ -24,6 +24,7 @@ from ocpsvg.ocp import (
     is_wire_closed,
     segment_curve,
     topoDS_iterator,
+    wire_from_continuous_edges,
 )
 from ocpsvg.svg import (
     ColorAndLabel,
@@ -40,7 +41,7 @@ from ocpsvg.svg import (
     wires_from_svg_path,
 )
 
-from .ocp import face_area, face_normal, wire_from_edges
+from .ocp import face_area, face_normal
 from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple
 
 
@@ -154,7 +155,7 @@ def test_polyline_apprx(curve: Geom_Curve):
     ],
 )
 def test_wire_to_svg(curves: list[Geom_Curve], svg_d: str, opts: dict[str, Any]):
-    wire = wire_from_edges(map(edge_from_curve, curves))
+    wire = wire_from_continuous_edges(map(edge_from_curve, curves))
     path = SvgPath(wire_to_svg_path(wire, tolerance=1e-5, **opts))
     assert svg_path_tokens(path) == approx(svg_path_tokens(svg_d), abs=1e-4), str(path)
 

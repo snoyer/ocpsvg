@@ -4,7 +4,6 @@ from math import radians
 from typing import Iterable, Iterator, Optional, Union, cast
 
 from OCP.Bnd import Bnd_Box
-from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.BRepBndLib import BRepBndLib
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace
@@ -44,8 +43,9 @@ from OCP.gp import (
     gp_Trsf,
     gp_Vec,
 )
+from OCP.ShapeAnalysis import ShapeAnalysis_Wire
 from OCP.ShapeExtend import ShapeExtend_WireData
-from OCP.ShapeFix import ShapeFix_Wire
+from OCP.ShapeFix import ShapeFix_Face, ShapeFix_Wire
 from OCP.Standard import Standard_Failure
 from OCP.StdFail import StdFail_NotDone
 from OCP.TColgp import TColgp_Array1OfPnt
@@ -125,7 +125,9 @@ def face_from_wires(
         for inner_wire in inner_wires:
             face_builder.Add(inner_wire)
 
-    return face_builder.Face()
+    face_fix = ShapeFix_Face(face_builder.Face())
+    face_fix.FixOrientation()
+    return face_fix.Face()
 
 
 class InvalidWiresForFace(ValueError):
@@ -147,7 +149,10 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
     def fix_wires():
         for wire in wires:
             # TODO split self intersecting wires?
-            yield closed_wire(wire)
+            fix = ShapeFix_Wire(wire, TopoDS_Face(), _TOLERANCE)
+            fix.FixClosed()
+            fix.FixConnected()
+            yield fix.Wire()
 
     faces = [BRepBuilderAPI_MakeFace(wire, True).Face() for wire in fix_wires()]
 
@@ -190,7 +195,8 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
 
 def is_wire_closed(wire: TopoDS_Wire) -> bool:
     """Check whether a wire is closed."""
-    return BRep_Tool.IsClosed_s(wire)
+    a = ShapeAnalysis_Wire(wire, BRepBuilderAPI_MakeFace(wire).Face(), _TOLERANCE)
+    return a.CheckClosed()
 
 
 def are_wires_coplanar(wires: Iterable[TopoDS_Wire]) -> bool:
