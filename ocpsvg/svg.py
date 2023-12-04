@@ -241,12 +241,6 @@ class ColorAndLabel:
         filled = not isinstance(shape, (TopoDS_Wire, TopoDS_Edge))
         return self.fill_color if filled and self.fill_color else self.stroke_color
 
-    @property
-    def color(self):
-        """Fill color if any, stroke color otherwise.
-        For backwards compatibility, use `color_for(shape)` instead."""
-        return self.fill_color if self.fill_color else self.stroke_color
-
     @staticmethod
     def _color(
         color: Union[svgelements.Color, None]
