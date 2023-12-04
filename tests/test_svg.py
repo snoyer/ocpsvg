@@ -500,7 +500,9 @@ def test_svg_doc_metadata_legacy():
     """
     buf = StringIO(svg_src)
     imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("class")))
-    assert [(metadata.label, metadata.color) for _shape, metadata in imported] == [
+    assert [
+        (metadata.label, metadata.color_for(shape)) for shape, metadata in imported
+    ] == [
         ("blue", (0, 0, 1, 1)),
         ("red", (1, 0, 0, 1)),
         ("", (0, 0, 0, 1)),
