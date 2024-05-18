@@ -7,7 +7,7 @@ from typing import Any, Sequence, Union
 
 import pytest
 import svgpathtools
-from OCP.Geom import Geom_Curve
+from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse
 from OCP.GeomAbs import GeomAbs_CurveType
 from OCP.gp import gp_Vec
 from OCP.TopoDS import TopoDS, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
@@ -37,6 +37,7 @@ from ocpsvg.svg import (
     format_svg,
     import_svg_document,
     polyline_to_svg_path,
+    svg_element_to_path,
     wire_to_svg_path,
     wires_from_svg_path,
 )
@@ -642,7 +643,9 @@ def test_fix_svgpathtools_closing_lines_doc():
     -0.034925,0.0238127 -0.05715,0.023812 z"/>
     </svg>
     """
-    for path, _, _ in find_shapes_svg_in_document(StringIO(svg_src)):
+    for e, _ in find_shapes_svg_in_document(StringIO(svg_src)):
+        path = svg_element_to_path(e)
+        assert path
         for segment in path:
             assert not isinstance(segment, svgpathtools.Line)
 
@@ -669,6 +672,58 @@ def test_fix_svgpathtools_closing_lines_str():
         for edge in topoDS_iterator(wire):
             curve = edge_to_curve(TopoDS.Edge_s(edge))
             assert curve.GetType() != GeomAbs_CurveType.GeomAbs_Line
+
+
+@pytest.mark.parametrize(
+    "element, curve_type, center",
+    [
+        (
+            'circle r="40" cx="10" cy="5" transform="translate(10 0)"',
+            Geom_Circle,
+            (20, 5),
+        ),
+        (
+            'circle r="40" transform="translate(10 0) scale(2 1)"',
+            Geom_Ellipse,
+            (10, 0),
+        ),
+        (
+            'ellipse rx="40" ry="80" transform="scale(1 .5)"',
+            Geom_Circle,
+            (0, 0),
+        ),
+        (
+            'circle r="40" transform="rotate(90) translate(10 0)"',
+            Geom_Circle,
+            (0, 10),
+        ),
+    ],
+)
+def test_circles_and_ellipses(
+    element: str,
+    curve_type: Union[Geom_Circle, Geom_Ellipse],
+    center: tuple[float, float],
+):
+    svg_src = f"""
+    <svg xmlns="http://www.w3.org/2000/svg">
+        <{element} stroke="red" fill="none"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf))
+    assert len(imported) == 1
+    assert isinstance(imported[0], TopoDS_Wire)
+
+    curves = [
+        edge_to_curve(TopoDS.Edge_s(e)).Curve().Curve()
+        for e in topoDS_iterator(imported[0])
+    ]
+    assert len(curves) == 1
+    curve = curves[0]
+    assert type(curve) == curve_type
+    assert isinstance(curve, (Geom_Circle, Geom_Ellipse))
+    loc = curve.Axis().Location()
+    assert (loc.X(), loc.Y()) == approx(center)
 
 
 def nested_squares_path(count: int, x: float = 0, y: float = 0):
