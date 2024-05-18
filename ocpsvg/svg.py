@@ -32,6 +32,7 @@ from .ocp import (
     CurveOrAdaptor,
     InvalidWiresForFace,
     bezier_curve,
+    circle_curve,
     curve_and_adaptor,
     curve_to_beziers,
     curve_to_polyline,
@@ -118,8 +119,7 @@ def import_svg_document(
     flip_y: bool = True,
     ignore_visibility: bool = False,
     metadata: Optional[Callable[[ShapeElement, Sequence[ParentElement]], M]],
-) -> ItemsFromDocument[tuple[FaceOrWire, M]]:
-    ...
+) -> ItemsFromDocument[tuple[FaceOrWire, M]]: ...
 
 
 @overload
@@ -128,8 +128,7 @@ def import_svg_document(
     *,
     flip_y: bool = True,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[FaceOrWire]:
-    ...
+) -> ItemsFromDocument[FaceOrWire]: ...
 
 
 def import_svg_document(
@@ -279,6 +278,44 @@ def faces_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Face]:
     :raises ValueError:
     """
     return faces_from_wire_soup(wires_from_svg_path(path))
+
+
+def wires_from_svg_element(element: ShapeElement) -> Iterable[TopoDS_Wire]:
+    def check_unskewed_transform() -> Union[tuple[float, float, float], None]:
+        o = svgelements.Point(0, 0) * element.transform
+        x = svgelements.Point(1, 0) * element.transform
+        y = svgelements.Point(0, 1) * element.transform
+        is_skewed = abs(o.angle_to(y) - o.angle_to(x)) != pi / 2  # type: ignore
+        if not is_skewed:
+            return o.distance_to(x), o.distance_to(y), o.angle_to(x)  # type: ignore
+
+    element.reify()
+
+    if isinstance(element, (svgelements.Circle, svgelements.Ellipse)) and (
+        scale_and_angle := check_unskewed_transform()
+    ):
+        cx = float(element.cx)  # type: ignore
+        cy = float(element.cy)  # type: ignore
+        origin = svgelements.Point(cx, cy) * element.transform
+        center = gp_Pnt(origin.real, origin.imag, 0)  # type: ignore
+        scale_x, scale_y, angle = scale_and_angle
+        r1 = float(element.rx) * scale_x  # type: ignore
+        r2 = float(element.ry) * scale_y  # type: ignore
+        if r1 == r2:
+            curve = circle_curve(r1, center=center)
+        else:
+            curve = ellipse_curve(r1, r2, center=center, rotation=degrees(angle))
+        yield wire_from_continuous_edges((edge_from_curve(curve),))
+
+    elif path := svg_element_to_path(element):
+        yield from wires_from_svg_path(path)
+
+
+def svg_element_to_path(element: ShapeElement):
+    path = svgelements.Path(element)
+    if len(path):
+        path.reify()
+        return _svgelements_to_svgpathtools(path)
 
 
 def wires_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Wire]:
@@ -623,8 +660,7 @@ def wires_from_svg_document(
     metadata_factory: Callable[[ShapeElement, Sequence[ParentElement]], M],
     *,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, M]]:
-    ...
+) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, M]]: ...
 
 
 @overload
@@ -633,8 +669,7 @@ def wires_from_svg_document(
     metadata_factory: None,
     *,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, None]]:
-    ...
+) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, None]]: ...
 
 
 def wires_from_svg_document(
@@ -657,17 +692,21 @@ def wires_from_svg_document(
     if callable(metadata_factory):
         wires = (
             (
-                list(wires_from_svg_path(path)),
+                list(wires_from_svg_element(source_element)),
                 is_filled(source_element),
                 metadata_factory(source_element, source_parents),
             )
-            for path, source_element, source_parents in elements
+            for source_element, source_parents in elements
         )
         return ItemsFromDocument(wires, elements.doc_info)
     else:
         wires = (
-            (list(wires_from_svg_path(path)), is_filled(source_element), None)
-            for path, source_element, _source_parents in elements
+            (
+                list(wires_from_svg_element(source_element)),
+                is_filled(source_element),
+                None,
+            )
+            for source_element, _source_parents in elements
         )
         return ItemsFromDocument(wires, elements.doc_info)
 
@@ -676,17 +715,7 @@ def find_shapes_svg_in_document(
     svg_file: Union[str, pathlib.Path, TextIO],
     *,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[
-    tuple[svgpathtools.Path, ShapeElement, tuple[ParentElement, ...]]
-]:
-    def _svgelements_to_svgpathtools(svgelements_path: svgelements.Path):
-        """converting segments might be faster than re-parsing maybe?
-        but the representations are different (segments vs commands)
-        so exchanging via path spec is probably the safest bet."""
-
-        d_string = svgelements_path.d(relative=False)  # type: ignore
-        return svgpathtools.Path(d_string)
-
+) -> ItemsFromDocument[tuple[ShapeElement, tuple[ParentElement, ...]]]:
     def walk_svg_element(
         element: svgelements.SVGElement, parents: tuple[ParentElement, ...] = ()
     ) -> Iterator[tuple[ShapeElement, tuple[ParentElement, ...]]]:
@@ -698,9 +727,11 @@ def find_shapes_svg_in_document(
                 yield from walk_svg_element(child, new_parents)  # type: ignore
 
     parsed_svg = svgelements.SVG.parse(  # type: ignore
-        resolve_path(svg_file)
-        if isinstance(svg_file, (str, pathlib.Path))
-        else svg_file,
+        (
+            resolve_path(svg_file)
+            if isinstance(svg_file, (str, pathlib.Path))
+            else svg_file
+        ),
         parse_display_none=ignore_visibility,
         ppi=25.4,  # inches to millimiters
     )
@@ -717,16 +748,25 @@ def find_shapes_svg_in_document(
 
             if isinstance(element, svgelements.Path):
                 if len(element):
-                    yield _svgelements_to_svgpathtools(element), element, parents
+                    yield element, parents
 
             elif isinstance(element, svgelements.Shape):
                 path = svgelements.Path(element)
                 if len(path):
                     path.reify()
-                    yield _svgelements_to_svgpathtools(path), element, parents
+                    yield element, parents
 
     doc_info = DocumentInfo(parsed_svg.width, parsed_svg.height)  # type: ignore
     return ItemsFromDocument(elements(), doc_info)
+
+
+def _svgelements_to_svgpathtools(svgelements_path: svgelements.Path):
+    """converting segments might be faster than re-parsing maybe?
+    but the representations are different (segments vs commands)
+    so exchanging via path spec is probably the safest bet."""
+
+    d_string = svgelements_path.d(relative=False)  # type: ignore
+    return svgpathtools.Path(d_string)
 
 
 def resolve_path(path: Union[pathlib.Path, str]) -> str:
