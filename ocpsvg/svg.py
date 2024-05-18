@@ -119,8 +119,7 @@ def import_svg_document(
     flip_y: bool = True,
     ignore_visibility: bool = False,
     metadata: Optional[Callable[[ShapeElement, Sequence[ParentElement]], M]],
-) -> ItemsFromDocument[tuple[FaceOrWire, M]]:
-    ...
+) -> ItemsFromDocument[tuple[FaceOrWire, M]]: ...
 
 
 @overload
@@ -129,8 +128,7 @@ def import_svg_document(
     *,
     flip_y: bool = True,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[FaceOrWire]:
-    ...
+) -> ItemsFromDocument[FaceOrWire]: ...
 
 
 def import_svg_document(
@@ -662,8 +660,7 @@ def wires_from_svg_document(
     metadata_factory: Callable[[ShapeElement, Sequence[ParentElement]], M],
     *,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, M]]:
-    ...
+) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, M]]: ...
 
 
 @overload
@@ -672,8 +669,7 @@ def wires_from_svg_document(
     metadata_factory: None,
     *,
     ignore_visibility: bool = False,
-) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, None]]:
-    ...
+) -> ItemsFromDocument[tuple[list[TopoDS_Wire], bool, None]]: ...
 
 
 def wires_from_svg_document(
@@ -731,9 +727,11 @@ def find_shapes_svg_in_document(
                 yield from walk_svg_element(child, new_parents)  # type: ignore
 
     parsed_svg = svgelements.SVG.parse(  # type: ignore
-        resolve_path(svg_file)
-        if isinstance(svg_file, (str, pathlib.Path))
-        else svg_file,
+        (
+            resolve_path(svg_file)
+            if isinstance(svg_file, (str, pathlib.Path))
+            else svg_file
+        ),
         parse_display_none=ignore_visibility,
         ppi=25.4,  # inches to millimiters
     )
