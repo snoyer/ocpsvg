@@ -740,7 +740,7 @@ def test_circles_and_ellipses(
     ]
     assert len(curves) == 1
     curve = curves[0]
-    assert type(curve) == curve_type
+    assert type(curve) is curve_type
     assert isinstance(curve, (Geom_Circle, Geom_Ellipse))
     loc = curve.Axis().Location()
     assert (loc.X(), loc.Y()) == approx(center)
