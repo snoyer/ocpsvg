@@ -8,12 +8,12 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Sequence, Union
 
 import pytest
-import svgpathtools
 from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse
 from OCP.GeomAbs import GeomAbs_CurveType
 from OCP.gp import gp_Vec
 from OCP.TopoDS import TopoDS, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
+import svgelements
 
 from ocpsvg.ocp import (
     bezier_curve,
@@ -289,7 +289,7 @@ def test_empty_paths():
     [
         "M 0,1,2",
         pytest.param(
-            "M 0,0 N 1,2", marks=pytest.mark.xfail(reason="svgpathtools accepts it")
+            "M 0,0 N 1,2", marks=pytest.mark.xfail(reason="svgelements accepts it")
         ),
     ],
 )
@@ -646,7 +646,7 @@ def test_filled_but_not_a_face_coaxial_segments():
     assert isinstance(imported[1], TopoDS_Wire)
 
 
-def test_fix_svgpathtools_closing_lines_doc():
+def test_fix_closing_lines_doc():
     """This path used to get an extremenly short closing line segment
     when converted from `svgpathelements` to `svgpathtools`.
     (fixed by converting through absolute path string)"""
@@ -669,11 +669,11 @@ def test_fix_svgpathtools_closing_lines_doc():
         path = svg_element_to_path(e)
         assert path
         for segment in path:
-            assert not isinstance(segment, svgpathtools.Line)
+            assert not isinstance(segment, svgelements.Line)
 
 
-def test_fix_svgpathtools_closing_lines_str():
-    """`svgpathtools` adds an extremenly short closing line segment to this path.
+def test_fix_closing_lines_str():
+    """`svgpathtools` would add an extremenly short closing line segment to this path.
     We want it ignored when converting to edges."""
     d = (
         "m 7.87394425193,0.171449092582 c -0.0222250120015,0 "
