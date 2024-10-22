@@ -333,24 +333,25 @@ def ellipse_curve(
 ) -> Union[Geom_Ellipse, Geom_TrimmedCurve]:
     if minor_radius > major_radius:
         major_radius, minor_radius = minor_radius, major_radius
-        rotation += 90
+        angle_adjustment = 90
+    else:
+        angle_adjustment = 0
 
-    ellipse_gp = gp_Elips(gp_Ax2(gp_Pnt(), normal), major_radius, minor_radius).Rotated(
-        gp_Ax1(), radians(rotation)
-    )
+    ellipse_gp = gp_Elips(gp_Ax2(gp_Pnt(), normal), major_radius, minor_radius)
+    ellipse_gp.Rotate(gp_Ax1(), radians(angle_adjustment))
+
     if start_angle == end_angle:
         ellipse = GC_MakeEllipse(ellipse_gp).Value()
     else:
         ellipse = GC_MakeArcOfEllipse(
             ellipse_gp,
-            radians(start_angle),
-            radians(end_angle),
+            radians(start_angle - angle_adjustment),
+            radians(end_angle - angle_adjustment),
             clockwise,
         ).Value()
 
-    trsf = gp_Trsf()
-    trsf.SetTranslation(gp_Vec(center.XYZ()))
-    ellipse.Transform(trsf)
+    ellipse.Rotate(gp_Ax1(gp_Pnt(), normal), radians(rotation))
+    ellipse.Translate(gp_Vec(center.XYZ()))
 
     return ellipse
 
