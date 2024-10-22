@@ -149,10 +149,7 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
     def fix_wires():
         for wire in wires:
             # TODO split self intersecting wires?
-            fix = ShapeFix_Wire(wire, TopoDS_Face(), _TOLERANCE)
-            fix.FixClosed()
-            fix.FixConnected()
-            yield fix.Wire()
+            yield face_outer_wire(face_from_wires(wire))
 
     faces = [BRepBuilderAPI_MakeFace(wire, True).Face() for wire in fix_wires()]
 
@@ -166,8 +163,7 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
             if i != j and BRepFeat.IsInside_s(face_i, face_j):
                 included_in.setdefault(i, set()).add(j)
 
-    WireListPair = tuple[list[TopoDS_Wire], list[TopoDS_Wire]]
-    outers_and_inners: dict[int, WireListPair] = {}
+    outers_and_inners: dict[int, tuple[list[TopoDS_Wire], list[TopoDS_Wire]]] = {}
 
     for i in range(len(faces)):
         ancestors = included_in.get(i, set())
@@ -185,7 +181,7 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
         else:  # pragma: nocover
             # shouldn't ever get here
             # but yield everything as simple faces just in case
-            logger.warn("invalid nesting (found %d outer wires)", len(outers))
+            logger.warning("invalid nesting (found %d outer wires)", len(outers))
             for path in chain(outers, inners):
                 yield face_from_wires(path)
 
