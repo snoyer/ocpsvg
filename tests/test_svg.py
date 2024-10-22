@@ -1,6 +1,8 @@
 import os
 import re
+from dataclasses import dataclass
 from io import StringIO
+from itertools import cycle
 from math import pi
 from tempfile import NamedTemporaryFile
 from typing import Any, Sequence, Union
@@ -744,6 +746,52 @@ def test_circles_and_ellipses(
     assert isinstance(curve, (Geom_Circle, Geom_Ellipse))
     loc = curve.Axis().Location()
     assert (loc.X(), loc.Y()) == approx(center)
+
+
+@dataclass
+class RoundedRect:
+    w: float
+    h: float
+    rx: float
+    ry: float
+
+    def attrs(self):
+        return f'width="{self.w}" height="{self.h}" rx="{self.rx}" ry="{self.ry}"'
+
+    def area(self):
+        rx = min(self.rx, self.w / 2)
+        ry = min(self.ry, self.h / 2)
+        return self.w * self.h - (2 * rx * 2 * ry - pi * rx * ry)
+
+
+def rounded_rect_cases():
+    rects = (
+        RoundedRect(20, 10, 2, 2),
+        RoundedRect(20, 10, 8, 2),
+        RoundedRect(20, 10, 3, 4),
+        RoundedRect(20, 10, 10, 4),
+        RoundedRect(20, 10, 12, 4),
+        RoundedRect(20, 10, 3, 5),
+        RoundedRect(20, 10, 3, 6),
+    )
+    for rect in rects:
+        yield rect, 0
+    for rect, angle in zip(rects, cycle([10, -17, 32, -45, 90])):
+        yield rect, angle
+
+
+@pytest.mark.parametrize("rounded_rect, angle", rounded_rect_cases())
+def test_rounded_rect(rounded_rect: RoundedRect, angle: float):
+    svg_src = f"""
+    <svg xmlns="http://www.w3.org/2000/svg">
+    <rect {rounded_rect.attrs()} transform="rotate({angle})"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf))
+    assert len(imported) == 1
+    assert isinstance(imported[0], TopoDS_Face)
+    assert face_area(imported[0]) == approx(rounded_rect.area())
 
 
 def nested_squares_path(count: int, x: float = 0, y: float = 0):
