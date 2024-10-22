@@ -222,6 +222,26 @@ def test_path_regression2():
     assert is_wire_closed(wires[0])
 
 
+def test_path_regression3():
+    """This path would not produce a face with 3 holes
+    when the wires were not re-oriented correctly"""
+    d = """
+    M 62.86,35.92
+    C 78.51,36.69 76.47,63.17 59.62,59.32 42.78,55.47 47.20,35.16 62.86,35.92
+    Z
+    m -3.99,12.40
+    c -6.56,-15.20 -10.92,10.45 0.01,0.04
+    M 67.41,55
+    c -1.93,-16.98 -16.51,6.21 0,0
+    z
+    m 0.35,-8.49
+    c 1.41,-17.03 -17.77,3.09 0.03,0.05
+    """
+    faces = list(faces_from_svg_path(d))
+    assert len(faces) == 1
+    assert len(face_inner_wires(faces[0])) == 3
+
+
 def test_arcs_path_to_wire():
     """this continuous path introduces small discontinuities when making the edges"""
     res = list(
@@ -720,7 +740,7 @@ def test_circles_and_ellipses(
     ]
     assert len(curves) == 1
     curve = curves[0]
-    assert type(curve) == curve_type
+    assert type(curve) is curve_type
     assert isinstance(curve, (Geom_Circle, Geom_Ellipse))
     loc = curve.Axis().Location()
     assert (loc.X(), loc.Y()) == approx(center)
