@@ -45,7 +45,7 @@ from OCP.gp import (
 )
 from OCP.ShapeAnalysis import ShapeAnalysis_Wire
 from OCP.ShapeExtend import ShapeExtend_WireData
-from OCP.ShapeFix import ShapeFix_Face, ShapeFix_Wire
+from OCP.ShapeFix import ShapeFix_Face
 from OCP.Standard import Standard_Failure
 from OCP.StdFail import StdFail_NotDone
 from OCP.TColgp import TColgp_Array1OfPnt
@@ -249,10 +249,7 @@ def closed_wire(wire: TopoDS_Wire) -> TopoDS_Wire:
         extend.AddOriented(edge_from_curve(segment_curve(end, start)), 0)
         wire = extend.Wire()
 
-    fix = ShapeFix_Wire(wire, TopoDS_Face(), _TOLERANCE)
-    fix.FixClosed()
-    fix.FixConnected()
-    return fix.Wire()
+    return wire
 
 
 #### edges

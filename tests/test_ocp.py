@@ -8,6 +8,7 @@ from pytest import approx, raises
 from ocpsvg.ocp import (
     bezier_curve,
     circle_curve,
+    closed_wire,
     curve_to_beziers,
     curve_to_bspline,
     curve_to_polyline,
@@ -88,7 +89,7 @@ def test_bezier_curve_invalid(controls: Iterable[gp_Pnt]):
         assert isinstance(bezier_curve(*controls), Geom_Curve)
 
 
-VARIOUS_CURVES = [
+VARIOUS_CURVES: list[Geom_Curve] = [
     segment_curve(Pnt(0, 0), Pnt(1, 1)),
     bezier_curve(Pnt(0, 1), Pnt(23, 45), Pnt(67, 89)),
     bezier_curve(Pnt(0, 1), Pnt(23, 45), Pnt(66, 89), Pnt(101, 213)),
@@ -155,6 +156,35 @@ def test_is_wire_closed():
     assert not is_wire_closed(polyline_wire(a, b, c))
     assert is_wire_closed(polyline_wire(a, b, c, a))
     assert is_wire_closed(polyline_wire(a, b, c, d, a))
+
+
+def test_closed_wire():
+    a = gp_Pnt(0, 0, 0)
+    b = gp_Pnt(10, 0, 0)
+    c = gp_Pnt(10, 10, 0)
+    d = gp_Pnt(0, 10, 0)
+
+    incomplete_loop = polyline_wire(a, b, c, d)
+    incomplete_loop_fixed = closed_wire(incomplete_loop)
+    assert incomplete_loop_fixed != incomplete_loop
+    assert is_wire_closed(incomplete_loop_fixed)
+
+
+def test_closed_wire_already_closed():
+    a = gp_Pnt(0, 0, 0)
+    b = gp_Pnt(10, 0, 0)
+    c = gp_Pnt(10, 10, 0)
+
+    loop = polyline_wire(a, b, c, a)
+    assert closed_wire(loop) == loop
+
+
+def test_closed_wire_single_segment_noop():
+    a = gp_Pnt(0, 0, 0)
+    b = gp_Pnt(10, 0, 0)
+    incomplete_loop = polyline_wire(a, b)
+    incomplete_loop_fixed = closed_wire(incomplete_loop)
+    assert incomplete_loop_fixed == incomplete_loop
 
 
 def test_face_from_wire_soup_winding():
