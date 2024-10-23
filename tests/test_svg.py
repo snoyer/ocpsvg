@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ from ocpsvg.ocp import (
     wire_from_continuous_edges,
 )
 from ocpsvg.svg import (
+    _SegmentInPath,
     ColorAndLabel,
     SvgPathCommand,
     bezier_to_svg_path,
@@ -807,6 +809,14 @@ def test_rounded_rect(rounded_rect: RoundedRect, angle: float):
     assert len(imported) == 1
     assert isinstance(imported[0], TopoDS_Face)
     assert face_area(imported[0]) == approx(rounded_rect.area())
+
+
+def test_invalid_segment_logging():
+    path = svgelements.Path("M 1 -2 C 3 -4 5 -6 7 -8 L 9 -10 Z")
+    assert (
+        str(_SegmentInPath(path[2], path))
+        == "`M 7,-8 L 9,-10` segment in path `M 1,-2 C 3,-4 5,-6 7,-8 L 9,-10 Z`"
+    )
 
 
 def nested_squares_path(count: int, x: float = 0, y: float = 0):

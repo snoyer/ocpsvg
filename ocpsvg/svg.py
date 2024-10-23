@@ -363,7 +363,8 @@ def continuous_edges_from_svg_path(
         if isinstance(segment, svgelements.Move):
             pass
         elif isinstance(segment, svgelements.Line):
-            return segment_curve(p(segment.start), p(segment.end))
+            if segment.start != segment.end:
+                return segment_curve(p(segment.start), p(segment.end))
         elif isinstance(segment, svgelements.QuadraticBezier):
             return bezier_curve(p(segment.start), p(segment.control), p(segment.end))
         elif isinstance(segment, svgelements.CubicBezier):
@@ -399,7 +400,7 @@ def continuous_edges_from_svg_path(
             try:
                 if curve := curves_from_segment(segment):  # type: ignore
                     yield edge_from_curve(curve)
-            except (StdFail_NotDone, ValueError):
+            except (StdFail_NotDone, ValueError):  # pragma: nocover
                 logger.debug("invalid %s", _SegmentInPath(segment, path))
 
     path = _path_from_SvgPathLike(path)
@@ -415,7 +416,7 @@ class _SegmentInPath:
 
     def __str__(self) -> str:
         d = self.path.d()  # type: ignore
-        return f"{type(self.segment).__name__} segment in {d}"
+        return f"`{self.segment}` segment in path `{d}`"
 
 
 ####
