@@ -8,12 +8,12 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Sequence, Union
 
 import pytest
+import svgelements
 from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse
 from OCP.GeomAbs import GeomAbs_CurveType
 from OCP.gp import gp_Vec
-from OCP.TopoDS import TopoDS, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
+from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
-import svgelements
 
 from ocpsvg.ocp import (
     bezier_curve,
@@ -312,6 +312,21 @@ def test_faces_from_svg_path(svg_d: str, expected_count: int):
     res = list(faces_from_svg_path(svg_d))
     assert len(res) == expected_count
     assert all(isinstance(x, TopoDS_Face) for x in res)
+
+
+@pytest.mark.parametrize(
+    "svg_d, expected_count",
+    [
+        ("M 0,0 v 1 h 1", 2),
+        ("M 0,0 v 1 M 1,0 v 2", 1 + 1),
+        ("M 0,0 v 1 h 1 z M 2,0 v 1 h 1", 3 + 2),
+        ("M 0,0 v 1 M 1,0 v 2", 2),
+    ],
+)
+def test_edges_from_svg_path(svg_d: str, expected_count: int):
+    res = list(edges_from_svg_path(svg_d))
+    assert len(res) == expected_count
+    assert all(isinstance(x, TopoDS_Edge) for x in res)
 
 
 @pytest.mark.parametrize(
