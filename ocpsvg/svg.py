@@ -18,7 +18,6 @@ from typing import (
 )
 
 import svgelements
-import svgpathtools
 from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.Geom import Geom_BezierCurve
@@ -85,7 +84,7 @@ def format_svg(path: Iterable[SvgPathCommand], float_format: str = "f") -> str:
     )
 
 
-SvgPathLike = Union[str, Iterable[SvgPathCommand], svgpathtools.Path]
+SvgPathLike = Union[str, Iterable[SvgPathCommand], svgelements.Path]
 ShapeElement = svgelements.Shape
 ParentElement = Union[svgelements.Group, svgelements.Use]
 
@@ -315,7 +314,7 @@ def svg_element_to_path(element: ShapeElement):
     path = svgelements.Path(element)
     if len(path):
         path.reify()
-        return _svgelements_to_svgpathtools(path)
+        return path
 
 
 def wires_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Wire]:
@@ -346,75 +345,78 @@ def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
 def continuous_edges_from_svg_path(
     path: SvgPathLike,
 ) -> Iterable[tuple[Iterable[TopoDS_Edge], bool]]:
-    def p(c: complex):
-        return gp_Pnt(c.real, c.imag, 0)
+    def p(c: Union[svgelements.Point, None]):
+        if c is None:  # pragma: nocover
+            logger.warning("found None point in %s", path)
+            return gp_Pnt(0, 0, 0)
+        else:
+            return gp_Pnt(c.real, c.imag, 0)  # type: ignore
 
-    def curve_from_segment(
+    def curves_from_segment(
         segment: Union[
-            svgpathtools.Line,
-            svgpathtools.QuadraticBezier,
-            svgpathtools.CubicBezier,
-            svgpathtools.Arc,
+            svgelements.Line,
+            svgelements.QuadraticBezier,
+            svgelements.CubicBezier,
+            svgelements.Arc,
         ]
     ):
-        if isinstance(segment, svgpathtools.Line):
-            return segment_curve(p(segment.start), p(segment.end))
-        elif isinstance(segment, svgpathtools.QuadraticBezier):
+        if isinstance(segment, svgelements.Move):
+            pass
+        elif isinstance(segment, svgelements.Line):
+            if segment.start != segment.end:
+                return segment_curve(p(segment.start), p(segment.end))
+        elif isinstance(segment, svgelements.QuadraticBezier):
             return bezier_curve(p(segment.start), p(segment.control), p(segment.end))
-        elif isinstance(segment, svgpathtools.CubicBezier):
+        elif isinstance(segment, svgelements.CubicBezier):
             return bezier_curve(
                 p(segment.start),
                 p(segment.control1),
                 p(segment.control2),
                 p(segment.end),
             )
-        elif isinstance(segment, svgpathtools.Arc):
+        elif isinstance(segment, svgelements.Arc):
             start_angle = segment.theta
             end_angle = segment.theta + segment.delta
             return ellipse_curve(
                 segment.radius.real,  # type: ignore
                 segment.radius.imag,  # type: ignore
                 start_angle=min(start_angle, end_angle),
-                end_angle=max(start_angle, end_angle),
-                clockwise=segment.sweep,
-                center=p(segment.center),  # type:ignore
-                rotation=degrees(segment.phi),
+                end_angle=max(end_angle, start_angle),
+                clockwise=end_angle > start_angle,
+                center=p(segment.center),
+                rotation=degrees(segment.get_rotation()),
             )
+        elif isinstance(segment, svgelements.Close):
+            if segment.start != segment.end:
+                return segment_curve(p(segment.start), p(segment.end))
         else:  # pragma: nocover
             logger.warning(f"unexpected segment type: {type(segment)}")
             return segment_curve(p(segment.start), p(segment.end))
 
     def edges_from_path(
-        path: svgpathtools.Path,
-        is_closed: bool,
-        closing_segment_threshold: float = 1e-10,
+        path: svgelements.Path,
     ):
-        last_i = len(path) - 1
-        for i, segment in enumerate(path):  # type: ignore
+        for segment in path:  # type: ignore
             try:
-                if not (
-                    is_closed
-                    and i == last_i
-                    and isinstance(segment, svgpathtools.Line)
-                    and segment.length() < closing_segment_threshold  # type: ignore
-                ):
-                    curve = curve_from_segment(segment)  # type: ignore
+                if curve := curves_from_segment(segment):  # type: ignore
                     yield edge_from_curve(curve)
-            except (StdFail_NotDone, ValueError):
+            except (StdFail_NotDone, ValueError):  # pragma: nocover
                 logger.debug("invalid %s", _SegmentInPath(segment, path))
 
     path = _path_from_SvgPathLike(path)
     for subpath, closed in _continuous_subpaths(path):
-        yield edges_from_path(subpath, closed), closed
+        if edges := list(edges_from_path(subpath)):
+            yield edges, closed
 
 
 class _SegmentInPath:
-    def __init__(self, segment: Any, path: svgpathtools.Path) -> None:
+    def __init__(self, segment: Any, path: svgelements.Path) -> None:
         self.segment = segment
         self.path = path
 
     def __str__(self) -> str:
-        return f"{type(self.segment).__name__} segment in {self.path.d()}"
+        d = self.path.d()  # type: ignore
+        return f"`{self.segment}` segment in path `{d}`"
 
 
 ####
@@ -760,40 +762,30 @@ def find_shapes_svg_in_document(
     return ItemsFromDocument(elements(), doc_info)
 
 
-def _svgelements_to_svgpathtools(svgelements_path: svgelements.Path):
-    """converting segments might be faster than re-parsing maybe?
-    but the representations are different (segments vs commands)
-    so exchanging via path spec is probably the safest bet."""
-
-    d_string = svgelements_path.d(relative=False)  # type: ignore
-    return svgpathtools.Path(d_string)
-
-
 def resolve_path(path: Union[pathlib.Path, str]) -> str:
     if not isinstance(path, pathlib.Path):
         path = pathlib.Path(path)
     return str(path.expanduser().resolve())
 
 
-def _path_from_SvgPathLike(path: SvgPathLike) -> svgpathtools.Path:
-    if isinstance(path, svgpathtools.Path):
+def _path_from_SvgPathLike(path: SvgPathLike) -> svgelements.Path:
+    if isinstance(path, svgelements.Path):
         return path
 
     if not isinstance(path, str):
         path = format_svg(path)
 
     try:
-        return svgpathtools.Path(str(path))
+        return svgelements.Path(str(path))
     except Exception:
-        # TODO proper syntax error, would need to come from within svgpathtools
+        # TODO proper syntax error, would need to come from within svgpathelements
         raise ValueError(f"could not make svg path from: {path!r}")
 
 
 def _continuous_subpaths(
-    path: svgpathtools.Path,
-) -> Iterator[tuple[svgpathtools.Path, bool]]:
-    subpaths: list[svgpathtools.Path] = path.continuous_subpaths()
-    for subpath in subpaths:
+    path: svgelements.Path,
+) -> Iterator[tuple[svgelements.Path, bool]]:
+    for subpath in path.as_subpaths():
         if subpath:
-            is_closed = bool(subpath.isclosedac())  # type: ignore
-            yield subpath, is_closed
+            is_closed = bool(subpath[0] == subpath[-1])  # type: ignore
+            yield svgelements.Path(subpath), is_closed

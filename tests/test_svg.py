@@ -8,11 +8,11 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Sequence, Union
 
 import pytest
-import svgpathtools
+import svgelements
 from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse
 from OCP.GeomAbs import GeomAbs_CurveType
 from OCP.gp import gp_Vec
-from OCP.TopoDS import TopoDS, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
+from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
 
 from ocpsvg.ocp import (
@@ -31,6 +31,7 @@ from ocpsvg.ocp import (
 from ocpsvg.svg import (
     ColorAndLabel,
     SvgPathCommand,
+    _SegmentInPath,
     bezier_to_svg_path,
     edge_to_svg_path,
     edges_from_svg_path,
@@ -289,7 +290,7 @@ def test_empty_paths():
     [
         "M 0,1,2",
         pytest.param(
-            "M 0,0 N 1,2", marks=pytest.mark.xfail(reason="svgpathtools accepts it")
+            "M 0,0 N 1,2", marks=pytest.mark.xfail(reason="svgelements accepts it")
         ),
     ],
 )
@@ -312,6 +313,21 @@ def test_faces_from_svg_path(svg_d: str, expected_count: int):
     res = list(faces_from_svg_path(svg_d))
     assert len(res) == expected_count
     assert all(isinstance(x, TopoDS_Face) for x in res)
+
+
+@pytest.mark.parametrize(
+    "svg_d, expected_count",
+    [
+        ("M 0,0 v 1 h 1", 2),
+        ("M 0,0 v 1 M 1,0 v 2", 1 + 1),
+        ("M 0,0 v 1 h 1 z M 2,0 v 1 h 1", 3 + 2),
+        ("M 0,0 v 1 M 1,0 v 2", 2),
+    ],
+)
+def test_edges_from_svg_path(svg_d: str, expected_count: int):
+    res = list(edges_from_svg_path(svg_d))
+    assert len(res) == expected_count
+    assert all(isinstance(x, TopoDS_Edge) for x in res)
 
 
 @pytest.mark.parametrize(
@@ -646,7 +662,7 @@ def test_filled_but_not_a_face_coaxial_segments():
     assert isinstance(imported[1], TopoDS_Wire)
 
 
-def test_fix_svgpathtools_closing_lines_doc():
+def test_fix_closing_lines_doc():
     """This path used to get an extremenly short closing line segment
     when converted from `svgpathelements` to `svgpathtools`.
     (fixed by converting through absolute path string)"""
@@ -669,11 +685,11 @@ def test_fix_svgpathtools_closing_lines_doc():
         path = svg_element_to_path(e)
         assert path
         for segment in path:
-            assert not isinstance(segment, svgpathtools.Line)
+            assert not isinstance(segment, svgelements.Line)
 
 
-def test_fix_svgpathtools_closing_lines_str():
-    """`svgpathtools` adds an extremenly short closing line segment to this path.
+def test_fix_closing_lines_str():
+    """`svgpathtools` would add an extremenly short closing line segment to this path.
     We want it ignored when converting to edges."""
     d = (
         "m 7.87394425193,0.171449092582 c -0.0222250120015,0 "
@@ -792,6 +808,14 @@ def test_rounded_rect(rounded_rect: RoundedRect, angle: float):
     assert len(imported) == 1
     assert isinstance(imported[0], TopoDS_Face)
     assert face_area(imported[0]) == approx(rounded_rect.area())
+
+
+def test_invalid_segment_logging():
+    path = svgelements.Path("M 1 -2 C 3 -4 5 -6 7 -8 L 9 -10 Z")
+    assert (
+        str(_SegmentInPath(path[2], path))
+        == "`M 7,-8 L 9,-10` segment in path `M 1,-2 C 3,-4 5,-6 7,-8 L 9,-10 Z`"
+    )
 
 
 def nested_squares_path(count: int, x: float = 0, y: float = 0):
