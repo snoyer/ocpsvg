@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 from dataclasses import dataclass
@@ -30,9 +29,9 @@ from ocpsvg.ocp import (
     wire_from_continuous_edges,
 )
 from ocpsvg.svg import (
-    _SegmentInPath,
     ColorAndLabel,
     SvgPathCommand,
+    _SegmentInPath,
     bezier_to_svg_path,
     edge_to_svg_path,
     edges_from_svg_path,
