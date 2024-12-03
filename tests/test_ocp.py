@@ -3,6 +3,8 @@ from typing import Iterable, Union
 import pytest
 from OCP.Geom import Geom_BezierCurve, Geom_Curve, Geom_TrimmedCurve
 from OCP.gp import gp_Pnt, gp_Vec
+from OCP.ShapeExtend import ShapeExtend_WireData
+from OCP.TopoDS import TopoDS_Wire
 from pytest import approx, raises
 
 from ocpsvg.ocp import (
@@ -179,12 +181,9 @@ def test_closed_wire_already_closed():
     assert closed_wire(loop) == loop
 
 
-def test_closed_wire_single_segment_noop():
-    a = gp_Pnt(0, 0, 0)
-    b = gp_Pnt(10, 0, 0)
-    incomplete_loop = polyline_wire(a, b)
-    incomplete_loop_fixed = closed_wire(incomplete_loop)
-    assert incomplete_loop_fixed == incomplete_loop
+def test_closed_wire_empty():
+    wire = ShapeExtend_WireData(TopoDS_Wire()).Wire()
+    assert closed_wire(wire) == wire
 
 
 def test_face_from_wire_soup_winding():
