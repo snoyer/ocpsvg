@@ -4,6 +4,7 @@ from math import radians
 from typing import Iterable, Iterator, Optional, Union, cast
 
 from OCP.Bnd import Bnd_Box
+from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.BRepBndLib import BRepBndLib
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace
@@ -43,7 +44,6 @@ from OCP.gp import (
     gp_Trsf,
     gp_Vec,
 )
-from OCP.ShapeAnalysis import ShapeAnalysis_Wire
 from OCP.ShapeExtend import ShapeExtend_WireData
 from OCP.ShapeFix import ShapeFix_Face
 from OCP.Standard import Standard_Failure
@@ -120,10 +120,10 @@ def face_from_wires(
     outer_wire: TopoDS_Wire, inner_wires: Optional[Iterable[TopoDS_Wire]] = None
 ) -> TopoDS_Face:
     """Make a face from an outer wire and optional inner wire(s)."""
-    face_builder = BRepBuilderAPI_MakeFace(outer_wire, True)
+    face_builder = BRepBuilderAPI_MakeFace(closed_wire(outer_wire), True)
     if inner_wires:
         for inner_wire in inner_wires:
-            face_builder.Add(inner_wire)
+            face_builder.Add(closed_wire(inner_wire))
 
     face_fix = ShapeFix_Face(face_builder.Face())
     face_fix.FixOrientation()
@@ -191,8 +191,7 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
 
 def is_wire_closed(wire: TopoDS_Wire) -> bool:
     """Check whether a wire is closed."""
-    a = ShapeAnalysis_Wire(wire, BRepBuilderAPI_MakeFace(wire).Face(), _TOLERANCE)
-    return a.CheckClosed()
+    return BRep_Tool.IsClosed_s(wire)
 
 
 def are_wires_coplanar(wires: Iterable[TopoDS_Wire]) -> bool:
@@ -212,7 +211,7 @@ def wire_from_continuous_edges(
     for edge in edges:
         extend.AddOriented(edge, 0)
 
-    wire = extend.Wire()
+    wire = extend.WireAPIMake()
     return closed_wire(wire) if closed else wire
 
 
@@ -226,15 +225,14 @@ def closed_wire(wire: TopoDS_Wire) -> TopoDS_Wire:
 
     it = topoDS_iterator(wire)
     try:
-        first_edge = next(it)
-        last_edge = next(it)
+        first_edge = last_edge = next(it)
         while True:
             try:
                 last_edge = next(it)
             except StopIteration:
                 break
     except StopIteration:
-        # wire has fewer that 2 edges
+        # wire has no edges
         return wire
 
     adaptor = BRepAdaptor_Curve(TopoDS.Edge_s(first_edge))
@@ -247,7 +245,7 @@ def closed_wire(wire: TopoDS_Wire) -> TopoDS_Wire:
         extend = ShapeExtend_WireData()
         extend.AddOriented(wire, 0)
         extend.AddOriented(edge_from_curve(segment_curve(end, start)), 0)
-        wire = extend.Wire()
+        wire = extend.WireAPIMake()
 
     return wire
 

@@ -787,5 +787,5 @@ def _continuous_subpaths(
 ) -> Iterator[tuple[svgelements.Path, bool]]:
     for subpath in path.as_subpaths():
         if subpath:
-            is_closed = bool(subpath[0] == subpath[-1])  # type: ignore
+            is_closed = isinstance(subpath[-1], svgelements.Close)
             yield svgelements.Path(subpath), is_closed
