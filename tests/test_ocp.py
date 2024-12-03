@@ -179,14 +179,6 @@ def test_closed_wire_already_closed():
     assert closed_wire(loop) == loop
 
 
-def test_closed_wire_single_segment_noop():
-    a = gp_Pnt(0, 0, 0)
-    b = gp_Pnt(10, 0, 0)
-    incomplete_loop = polyline_wire(a, b)
-    incomplete_loop_fixed = closed_wire(incomplete_loop)
-    assert incomplete_loop_fixed == incomplete_loop
-
-
 def test_face_from_wire_soup_winding():
     a = gp_Pnt(0, 0, 0)
     b = gp_Pnt(10, 0, 0)

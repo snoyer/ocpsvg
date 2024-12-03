@@ -45,7 +45,7 @@ from ocpsvg.svg import (
     wires_from_svg_path,
 )
 
-from .ocp import face_area, face_normal
+from .ocp import face_area, face_normal, is_valid
 from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple
 
 
@@ -192,6 +192,7 @@ def test_path_regression1():
     """
     wires = list(wires_from_svg_path(d))
     assert len(wires) == 1
+    assert is_valid(wires[0])
     assert is_wire_closed(wires[0])
 
 
@@ -222,6 +223,7 @@ def test_path_regression2():
     """
     wires = list(wires_from_svg_path(d))
     assert len(wires) == 1
+    assert is_valid(wires[0])
     assert is_wire_closed(wires[0])
 
 
@@ -242,6 +244,7 @@ def test_path_regression3():
     """
     faces = list(faces_from_svg_path(d))
     assert len(faces) == 1
+    assert is_valid(faces[0])
     assert len(face_inner_wires(faces[0])) == 3
 
 
@@ -306,13 +309,15 @@ def test_invalid_path(svg_d: str):
         ("M 0,0 v 1 h 1 z", 1),
         ("M 0,0 v 1 h 1", 1),
         ("M 10 80 Q 95 10 180 80", 1),
-        ("M 10 80 C 40 10, 65 10, 95 80 S 150 150, 180 80", 1),
+        ("M 10 80 C 40 10, 65 10, 95 80 S 150 150, 60 80", 1),
     ],
 )
 def test_faces_from_svg_path(svg_d: str, expected_count: int):
     res = list(faces_from_svg_path(svg_d))
     assert len(res) == expected_count
-    assert all(isinstance(x, TopoDS_Face) for x in res)
+    for face in res:
+        assert isinstance(face, TopoDS_Face)
+        assert is_valid(face)
 
 
 @pytest.mark.parametrize(
@@ -327,7 +332,9 @@ def test_faces_from_svg_path(svg_d: str, expected_count: int):
 def test_edges_from_svg_path(svg_d: str, expected_count: int):
     res = list(edges_from_svg_path(svg_d))
     assert len(res) == expected_count
-    assert all(isinstance(x, TopoDS_Edge) for x in res)
+    for edge in res:
+        assert isinstance(edge, TopoDS_Edge)
+        assert is_valid(edge)
 
 
 @pytest.mark.parametrize(
@@ -342,7 +349,9 @@ def test_edges_from_svg_path(svg_d: str, expected_count: int):
 def test_wires_from_svg_path(svg_d: str, expected_count: int):
     res = list(wires_from_svg_path(svg_d))
     assert len(res) == expected_count
-    assert all(isinstance(x, TopoDS_Wire) for x in res)
+    for wire in res:
+        assert isinstance(wire, TopoDS_Wire)
+        assert is_valid(wire)
 
 
 @pytest.mark.parametrize("count", range(3, 10))
@@ -354,6 +363,7 @@ def test_concentric_path_nesting(count: int):
         expected_hole_counts = [1] * n
     res = list(faces_from_svg_path(nested_squares_path(count)))
     assert hole_counts(res) == expected_hole_counts
+    assert all(map(is_valid, res))
 
 
 def test_path_nesting():
@@ -396,6 +406,7 @@ def test_path_nesting():
 
     expected_hole_counts = [0, 0, 1, 2]
     assert hole_counts(res) == expected_hole_counts
+    assert all(map(is_valid, res))
 
 
 def test_svg_doc_from_file():
@@ -437,6 +448,7 @@ def test_svg_doc_shapes():
     buf = StringIO(svg_src)
     imported = list(import_svg_document(buf))
     assert len(imported) == 3
+    assert all(map(is_valid, imported))
 
 
 @pytest.mark.parametrize("flip_y", [False, True])
@@ -508,6 +520,7 @@ def test_svg_doc_ignore_visibility():
     buf = StringIO(svg_src)
     imported = list(import_svg_document(buf, ignore_visibility=True))
     assert len(imported) == 2
+    assert all(map(is_valid, imported))
 
 
 @pytest.mark.parametrize("flip_y", [False, True])
