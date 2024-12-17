@@ -9,9 +9,9 @@ from typing import Any, Sequence, Union
 
 import pytest
 import svgelements
-from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse
+from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse, Geom_TrimmedCurve
 from OCP.GeomAbs import GeomAbs_CurveType
-from OCP.gp import gp_Vec
+from OCP.gp import gp_Pnt, gp_Vec
 from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
 
@@ -35,6 +35,7 @@ from ocpsvg.svg import (
     bezier_to_svg_path,
     edge_to_svg_path,
     edges_from_svg_path,
+    face_to_svg_path,
     faces_from_svg_path,
     find_shapes_svg_in_document,
     format_svg,
@@ -46,12 +47,32 @@ from ocpsvg.svg import (
 )
 
 from .ocp import face_area, face_normal, is_valid
-from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple
+from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple, polygon_face
 
 
 class SvgPath(list[SvgPathCommand]):
     def __str__(self) -> str:
         return format_svg(self)
+
+
+def wire_from_curves(*curves: Geom_Curve):
+    return wire_from_continuous_edges(map(edge_from_curve, curves))
+
+
+def extend_curve(
+    curve: Union[Geom_TrimmedCurve, Geom_Curve], before: float, after: float
+):
+    def f(t: float, d: float):
+        p1, v1 = gp_Pnt(), gp_Vec()
+        curve.D1(t, p1, v1)
+        v1.Normalize()
+        v1.Multiply(d)
+        v1.Add(gp_Vec(p1.XYZ()))
+        return p1, gp_Pnt(v1.XYZ())
+
+    p0, p1 = f(curve.FirstParameter(), -before)
+    p2, p3 = f(curve.LastParameter(), +after)
+    return wire_from_curves(segment_curve(p0, p1), curve, segment_curve(p2, p3))
 
 
 @pytest.mark.parametrize(
@@ -138,29 +159,112 @@ def test_polyline_apprx(curve: Geom_Curve):
 
 
 @pytest.mark.parametrize(
-    "curves, svg_d, opts",
+    "wire, svg_d, opts",
     [
         (
-            [
-                segment_curve(Pnt(-1, 4), Pnt(0, 1)),
-                bezier_curve(Pnt(0, 1), Pnt(3, 2), Pnt(4, 5)),
-            ],
-            "M-1,4 L 0,1" "Q 3,2,4,5",
+            wire_from_curves(
+                segment_curve(Pnt(0, 1), Pnt(2, 4)),
+            ),
+            "M0,1 L2,4",
             {},
         ),
         (
-            [
+            wire_from_curves(
+                segment_curve(Pnt(0, 1), Pnt(2, 4)),
+            ).Reversed(),
+            "M2,4 L0,1",
+            {},
+        ),
+        (
+            wire_from_curves(
+                segment_curve(Pnt(0, 1), Pnt(2, 4)),
+                segment_curve(Pnt(2, 4), Pnt(6, 8)),
+            ),
+            "M0,1 L2,4 L6,8",
+            {},
+        ),
+        (
+            wire_from_curves(
+                segment_curve(Pnt(0, 1), Pnt(2, 4)),
+                segment_curve(Pnt(2, 4), Pnt(6, 8)),
+            ).Reversed(),
+            "M6,8 L2,4 L0,1",
+            {},
+        ),
+        (
+            wire_from_curves(
+                bezier_curve(Pnt(-1, 4), Pnt(0, 1)),
+                bezier_curve(Pnt(0, 1), Pnt(3, 2), Pnt(4, 5)),
+                bezier_curve(Pnt(4, 5), Pnt(8, 1), Pnt(7, 3), Pnt(5, 2)),
+            ),
+            "M-1,4 L 0,1 Q 3,2 4,5 C 8,1 7,3 5,2",
+            {},
+        ),
+        (
+            wire_from_curves(
+                bezier_curve(Pnt(-1, 4), Pnt(0, 1)),
+                bezier_curve(Pnt(0, 1), Pnt(3, 2), Pnt(4, 5)),
+                bezier_curve(Pnt(4, 5), Pnt(8, 1), Pnt(7, 3), Pnt(5, 2)),
+            ).Reversed(),
+            "M5,2 C7,3 8,1 4,5 Q3,2 0,1 L-1,4",
+            {},
+        ),
+        (
+            wire_from_curves(
+                bezier_curve(Pnt(-1, 4), Pnt(0, 1)),
+                bezier_curve(Pnt(0, 1), Pnt(3, 2), Pnt(4, 5)),
+                bezier_curve(Pnt(4, 5), Pnt(8, 1), Pnt(7, 3), Pnt(5, 2)),
+            ).Reversed(),
+            "M5,2 C7,3 8,1 4,5 Q3,2 0,1 L-1,4",
+            {},
+        ),
+        (
+            wire_from_curves(
                 segment_curve(Pnt(-1, 4), Pnt(0, 1)),
                 bezier_curve(Pnt(0, 1), Pnt(3, 2), Pnt(4, 5)),
-            ],
-            "M-1,4 L 0,1" "C 2.0,1.666666,3.333333,3.0,4.0,5.0",
+            ),
+            "M-1,4 L 0,1 C 2.0,1.666666 3.333333,3.0 4.0,5.0",
             dict(use_quadratics=False),
+        ),
+        (
+            extend_curve(ellipse_curve(8, 5, 90, 180, center=gp_Pnt(2, 4, 0)), 2, 3),
+            "M-6,4 L-6,2 A8,5,0,0,1,-6,4 L2,9",
+            {},
+        ),
+        (
+            extend_curve(
+                ellipse_curve(8, 5, 90, 180, center=gp_Pnt(2, 4, 0)), 2, 3
+            ).Reversed(),
+            "M2,9 L5,9 A8,5,0,0,0,2,9 L-6,4",
+            {},
         ),
     ],
 )
-def test_wire_to_svg(curves: list[Geom_Curve], svg_d: str, opts: dict[str, Any]):
-    wire = wire_from_continuous_edges(map(edge_from_curve, curves))
+def test_wire_to_svg(wire: TopoDS_Wire, svg_d: str, opts: dict[str, Any]):
     path = SvgPath(wire_to_svg_path(wire, tolerance=1e-5, **opts))
+    assert svg_path_tokens(path) == approx(svg_path_tokens(svg_d), abs=1e-4), str(path)
+
+
+@pytest.mark.parametrize(
+    "face, svg_d",
+    [
+        (
+            polygon_face(
+                (Pnt(0, 0), Pnt(1, 0), Pnt(1, 1), Pnt(0, 1)),
+            ),
+            "M0,0 L 1,0 L 1,1 L 0,1 L 0,0 Z",
+        ),
+        (
+            polygon_face(
+                (Pnt(0, 0), Pnt(3, 0), Pnt(3, 3), Pnt(0, 3)),
+                (Pnt(1, 1), Pnt(2, 1), Pnt(1, 2)),
+            ),
+            "M0,0 L 3,0 L 3,3 L 0,3 L 0,0 Z M1,1 L 1,2 L 2,1 L 1,1 Z",
+        ),
+    ],
+)
+def test_face_to_svg(face: TopoDS_Face, svg_d: str):
+    path = SvgPath(face_to_svg_path(face, tolerance=1e-5))
     assert svg_path_tokens(path) == approx(svg_path_tokens(svg_d), abs=1e-4), str(path)
 
 

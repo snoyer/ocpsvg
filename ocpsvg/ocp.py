@@ -49,6 +49,7 @@ from OCP.ShapeFix import ShapeFix_Face
 from OCP.Standard import Standard_Failure
 from OCP.StdFail import StdFail_NotDone
 from OCP.TColgp import TColgp_Array1OfPnt
+from OCP.TopAbs import TopAbs_Orientation
 from OCP.TopoDS import (
     TopoDS,
     TopoDS_Builder,
@@ -100,6 +101,10 @@ def topoDS_iterator(
     while iterator.More():
         yield iterator.Value()
         iterator.Next()
+
+
+def is_reversed(wire_or_edge: TopoDS_Shape):
+    return wire_or_edge.Orientation() == TopAbs_Orientation.TopAbs_REVERSED
 
 
 #### faces
@@ -459,7 +464,5 @@ def curve_and_adaptor(
         return curve_or_adaptor, GeomAdaptor_Curve(curve_or_adaptor)
     elif isinstance(curve_or_adaptor, GeomAdaptor_Curve):
         return curve_or_adaptor.Curve(), curve_or_adaptor
-    elif isinstance(curve_or_adaptor, BRepAdaptor_Curve):
-        return curve_or_adaptor.Curve().Curve(), curve_or_adaptor
     else:
-        raise TypeError()
+        return curve_or_adaptor.Curve().Curve(), curve_or_adaptor
