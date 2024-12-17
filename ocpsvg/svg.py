@@ -39,6 +39,7 @@ from .ocp import (
     edge_to_curve,
     ellipse_curve,
     faces_from_wire_soup,
+    is_reversed,
     segment_curve,
     topoDS_iterator,
     wire_from_continuous_edges,
@@ -171,7 +172,7 @@ def import_svg_document(
             mirrored.Reverse()
             if isinstance(shape, TopoDS_Face):
                 return TopoDS.Face_s(mirrored)
-            if isinstance(shape, TopoDS_Wire):
+            elif isinstance(shape, TopoDS_Wire):
                 return TopoDS.Wire_s(mirrored)
             else:
                 raise AssertionError(f"somehow got unexpected shape {shape}")
@@ -430,20 +431,21 @@ def face_to_svg_path(
     use_quadratics: bool = True,
     use_arcs: bool = True,
     split_full_arcs: bool = True,
-    with_first_move: bool = True,
 ) -> Iterable[SvgPathCommand]:
-    return chain.from_iterable(
-        wire_to_svg_path(
+    for wire in topoDS_iterator(face):
+        cmd = None
+        for cmd in wire_to_svg_path(
             TopoDS.Wire_s(wire),
             tolerance=tolerance,
             use_cubics=use_cubics,
             use_quadratics=use_quadratics,
             use_arcs=use_arcs,
             split_full_arcs=split_full_arcs,
-            with_first_move=with_first_move and i == 0,
-        )
-        for i, wire in enumerate(topoDS_iterator(face))
-    )
+            with_first_move=True,
+        ):
+            yield cmd
+        if cmd and cmd != ("Z",):
+            yield "Z",
 
 
 def wire_to_svg_path(
@@ -456,6 +458,10 @@ def wire_to_svg_path(
     split_full_arcs: bool = True,
     with_first_move: bool = True,
 ) -> Iterable[SvgPathCommand]:
+    edges = topoDS_iterator(wire)
+    if is_reversed(wire):
+        edges = reversed(list(edges))
+
     return chain.from_iterable(
         edge_to_svg_path(
             TopoDS.Edge_s(edge),
@@ -466,7 +472,7 @@ def wire_to_svg_path(
             split_full_arcs=split_full_arcs,
             with_first_move=with_first_move and i == 0,
         )
-        for i, edge in enumerate(topoDS_iterator(wire))
+        for i, edge in enumerate(edges)
     )
 
 
@@ -488,6 +494,7 @@ def edge_to_svg_path(
         use_arcs=use_arcs,
         split_full_arcs=split_full_arcs,
         with_first_move=with_first_move,
+        reverse=is_reversed(edge),
     )
 
 
@@ -500,6 +507,7 @@ def curve_to_svg_path(
     use_arcs: bool = True,
     split_full_arcs: bool = True,
     with_first_move: bool = True,
+    reverse: bool = False,
 ) -> Iterable[SvgPathCommand]:
     _curve, adaptor = curve_and_adaptor(curve_or_adaptor)
     curve_type = adaptor.GetType()
@@ -508,6 +516,9 @@ def curve_to_svg_path(
         if curve_type == GeomAbs_CurveType.GeomAbs_Line:
             p0 = adaptor.Value(adaptor.FirstParameter())
             p1 = adaptor.Value(adaptor.LastParameter())
+            if reverse:
+                p0, p1 = p1, p0
+
             if with_first_move:
                 yield "M", p0.X(), p0.Y()
             yield "L", p1.X(), p1.Y()
@@ -532,6 +543,7 @@ def curve_to_svg_path(
                 axis,
                 split_full_arcs=split_full_arcs,
                 with_first_move=with_first_move,
+                reverse=reverse,
             )
 
         elif use_cubics or use_quadratics:
@@ -543,12 +555,14 @@ def curve_to_svg_path(
                     bezier,
                     use_quadratics=use_quadratics,
                     with_first_move=with_first_move and i == 0,
+                    reverse=reverse,
                 )
         else:
             yield from polyline_to_svg_path(
                 curve_to_polyline(adaptor, tolerance=tolerance),
                 with_first_move=with_first_move,
                 closed=adaptor.IsClosed(),
+                reverse=reverse,
             )
     except Exception as e:  # pragma: nocover
         logger.error(
@@ -560,6 +574,7 @@ def curve_to_svg_path(
             curve_to_polyline(adaptor, tolerance=tolerance),
             with_first_move=with_first_move,
             closed=adaptor.IsClosed(),
+            reverse=reverse,
         )
 
 
@@ -570,9 +585,12 @@ def ellipse_to_svg_path(
     axis: gp_Ax1,
     with_first_move: bool = True,
     split_full_arcs: bool = True,
+    reverse: bool = False,
 ) -> Iterable[SvgPathCommand]:
     t0 = adaptor_curve.FirstParameter()
     t1 = adaptor_curve.LastParameter()
+    if reverse:
+        t0, t1 = t1, t0
     p0 = adaptor_curve.Value(t0)
     pm = adaptor_curve.Value((t1 + t0) / 2.0)
     p1 = adaptor_curve.Value(t1)
@@ -603,31 +621,47 @@ def bezier_to_svg_path(
     *,
     use_quadratics: bool = True,
     with_first_move: bool = True,
+    reverse: bool = False,
 ) -> Iterable[SvgPathCommand]:
     degree = bezier.Degree()
 
     p0 = bezier.Pole(1)
-    if with_first_move:
-        yield "M", p0.X(), p0.Y()
 
     if degree == 3:
         p1 = bezier.Pole(2)
         p2 = bezier.Pole(3)
         p3 = bezier.Pole(4)
+        if reverse:
+            p0, p1, p2, p3 = p3, p2, p1, p0
+
+        if with_first_move:
+            yield "M", p0.X(), p0.Y()
         yield "C", p1.X(), p1.Y(), p2.X(), p2.Y(), p3.X(), p3.Y()
 
     elif degree == 2:
         p1 = bezier.Pole(2)
         p2 = bezier.Pole(3)
+        if reverse:
+            p0, p1, p2 = p2, p1, p0
+
         if use_quadratics:
+            if with_first_move:
+                yield "M", p0.X(), p0.Y()
             yield "Q", p1.X(), p1.Y(), p2.X(), p2.Y()
         else:
             p1b = gp_Vec(p0.X(), p0.Y(), 0).Added(gp_Vec(p0, p1).Multiplied(2 / 3))
             p2b = gp_Vec(p2.X(), p2.Y(), 0).Added(gp_Vec(p2, p1).Multiplied(2 / 3))
+            if with_first_move:
+                yield "M", p0.X(), p0.Y()
             yield "C", p1b.X(), p1b.Y(), p2b.X(), p2b.Y(), p2.X(), p2.Y()
 
     elif degree == 1:
         p1 = bezier.Pole(2)
+        if reverse:
+            p0, p1 = p1, p0
+
+        if with_first_move:
+            yield "M", p0.X(), p0.Y()
         yield "L", p1.X(), p1.Y()
 
     else:
@@ -639,10 +673,11 @@ def polyline_to_svg_path(
     *,
     with_first_move: bool = True,
     closed: bool = False,
+    reverse: bool = False,
 ) -> Iterable[SvgPathCommand]:
     points = list(points)
     if points:
-        first, *others = points
+        first, *others = reversed(points) if reverse else points
 
         if with_first_move:
             yield "M", first.X(), first.Y()

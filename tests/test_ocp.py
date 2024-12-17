@@ -1,16 +1,20 @@
 from typing import Iterable, Union
 
 import pytest
+from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.Geom import Geom_BezierCurve, Geom_Curve, Geom_TrimmedCurve
+from OCP.GeomAdaptor import GeomAdaptor_Curve
 from OCP.gp import gp_Pnt, gp_Vec
 from OCP.ShapeExtend import ShapeExtend_WireData
 from OCP.TopoDS import TopoDS_Wire
 from pytest import approx, raises
 
 from ocpsvg.ocp import (
+    InvalidWiresForFace,
     bezier_curve,
     circle_curve,
     closed_wire,
+    curve_and_adaptor,
     curve_to_beziers,
     curve_to_bspline,
     curve_to_polyline,
@@ -149,6 +153,12 @@ def test_curve_to_polyline(curve: Geom_Curve):
     assert all(isinstance(p, gp_Pnt) for p in curve_to_polyline(curve, tolerance=1e-5))
 
 
+def test_curve_to_polyline_error():
+    curve = bezier_curve(Pnt(0, 0), Pnt(0, 0), Pnt(0, float("inf")))
+    with raises(ValueError):
+        list(curve_to_polyline(curve, tolerance=1e-5))
+
+
 def test_is_wire_closed():
     a = gp_Pnt(0, 0, 0)
     b = gp_Pnt(10, 0, 0)
@@ -186,6 +196,18 @@ def test_closed_wire_empty():
     assert closed_wire(wire) == wire
 
 
+def test_face_from_wire_soup_planar_check():
+    with raises(InvalidWiresForFace):
+        list(
+            faces_from_wire_soup(
+                [
+                    polyline_wire(Pnt(0, 0), Pnt(1, 0), Pnt(0, 1)),
+                    polyline_wire(Pnt(0, 0, 2), Pnt(1, 0, 2), Pnt(0, 1, 2)),
+                ]
+            )
+        )
+
+
 def test_face_from_wire_soup_winding():
     a = gp_Pnt(0, 0, 0)
     b = gp_Pnt(10, 0, 0)
@@ -211,7 +233,28 @@ def test_face_from_wire_soup_winding():
     assert faces_area_from_rings([d, c, b, a], [h, g, f, e]) == approx([75.0])
 
 
+@pytest.mark.parametrize(
+    "curve_or_adaptor",
+    [
+        segment_curve(Pnt(0, 0), Pnt(1, 2)),
+        GeomAdaptor_Curve(segment_curve(Pnt(0, 0), Pnt(1, 2))),
+        BRepAdaptor_Curve(edge_from_curve(segment_curve(Pnt(0, 0), Pnt(1, 2)))),
+    ],
+)
+def test_curve_and_adaptor(
+    curve_or_adaptor: Union[Geom_Curve, GeomAdaptor_Curve, BRepAdaptor_Curve]
+):
+    curve, adaptor = curve_and_adaptor(curve_or_adaptor)
+    assert isinstance(curve, Geom_Curve)
+    assert isinstance(adaptor, (GeomAdaptor_Curve, BRepAdaptor_Curve))
+
+
 def polyline_wire(*points: gp_Pnt):
     return wire_from_continuous_edges(
         edge_from_curve(segment_curve(p, q)) for p, q in zip(points, points[1:])
     )
+
+
+def polygon_face(*polygons: Iterable[gp_Pnt]):
+    for face in faces_from_wire_soup(polyline_wire(*polygon) for polygon in polygons):
+        return face
