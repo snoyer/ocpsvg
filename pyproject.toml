@@ -2,7 +2,7 @@
 [project]
 name = "ocpsvg"
 readme = "readme-pypi.md"
-version = "0.3.2"
+version = "0.3.3"
 requires-python = ">=3.9"
 dependencies = [
     "cadquery-ocp >= 7.7.0",
