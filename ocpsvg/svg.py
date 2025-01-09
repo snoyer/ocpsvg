@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import warnings
 from itertools import chain
 from math import degrees, pi
 from typing import (
@@ -58,7 +59,7 @@ __all__ = [
     "edge_to_svg_path",
     "curve_to_svg_path",
     "SvgPathCommand",
-    "format_svg",
+    "format_svg_path",
 ]
 
 
@@ -78,7 +79,29 @@ SvgPathCommand = Union[
 ]
 
 
+class float_formatter:
+    """float formatter with given precision and no trailing zeroes."""
+
+    def __init__(self, decimals: Optional[int] = None):
+        self.format_spec = f".{decimals or 12}f"
+
+    def __call__(self, v: float):
+        return v.__format__(self.format_spec).rstrip("0").rstrip(".")
+
+
+def format_svg_path(
+    path: Iterable[SvgPathCommand], *, decimals: Optional[int] = None
+) -> str:
+    ff = float_formatter(decimals)
+    return " ".join(f"{cmd[0]}{','.join(map(ff, cmd[1:]))}" for cmd in path)
+
+
 def format_svg(path: Iterable[SvgPathCommand], float_format: str = "f") -> str:
+    warnings.warn(
+        "`format_svg` is deprecated, use `format_svg_path` instead.",
+        FutureWarning,
+        stacklevel=2,
+    )
     return " ".join(
         f"{cmd[0]}{','.join(arg.__format__(float_format) for arg in cmd[1:])}"
         for cmd in path
@@ -808,7 +831,7 @@ def _path_from_SvgPathLike(path: SvgPathLike) -> svgelements.Path:
         return path
 
     if not isinstance(path, str):
-        path = format_svg(path)
+        path = format_svg_path(path)
 
     try:
         return svgelements.Path(str(path))

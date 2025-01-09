@@ -24,7 +24,7 @@ from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape, HLRBRep_TypeOfResultin
 from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Shape
 
 from .ocp import bounding_box, topoDS_iterator
-from .svg import edge_to_svg_path, format_svg
+from .svg import edge_to_svg_path, float_formatter, format_svg_path
 
 HlrEdgeTypeName = Literal["undefined", "isoline", "sewn", "smooth", "sharp", "outline"]
 
@@ -170,7 +170,7 @@ class HiddenLineRender(Iterable[HlrEdge]):
         css_style: Optional[CssStyle] = None,
         background: Optional[bool] = None,
         tolerance: float = 1e-6,
-        float_format: str = "g",
+        decimals: Optional[int] = None,
     ) -> ET.ElementTree:
         (x0, y0, x1, y1), scale, (W, H) = _viewbox_and_scale(
             self.bounds(),
@@ -180,8 +180,7 @@ class HiddenLineRender(Iterable[HlrEdge]):
         )
         ty = -(y1 + y0) / scale
 
-        def fmt(v: float):
-            return v.__format__(float_format)
+        fmt = float_formatter(decimals)
 
         svg = ET.Element("svg", xmlns="http://www.w3.org/2000/svg")
         svg.attrib["viewBox"] = f"{fmt(x0)} {fmt(y0)} {fmt(x1-x0)} {fmt(y1-y0)}"
@@ -224,9 +223,9 @@ class HiddenLineRender(Iterable[HlrEdge]):
 
             attrs = {
                 "id": f"e{i}",
-                "d": format_svg(
+                "d": format_svg_path(
                     edge_to_svg_path(edge.projected_edge, tolerance=tolerance),
-                    float_format=float_format,
+                    decimals=decimals,
                 ),
                 "class": " ".join(classnames),
             }

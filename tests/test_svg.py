@@ -31,7 +31,7 @@ from ocpsvg.ocp import (
 from ocpsvg.svg import (
     ColorAndLabel,
     SvgPathCommand,
-    _SegmentInPath,
+    _SegmentInPath,  # type: ignore private usage
     bezier_to_svg_path,
     edge_to_svg_path,
     edges_from_svg_path,
@@ -39,6 +39,7 @@ from ocpsvg.svg import (
     faces_from_svg_path,
     find_shapes_svg_in_document,
     format_svg,
+    format_svg_path,
     import_svg_document,
     polyline_to_svg_path,
     svg_element_to_path,
@@ -52,7 +53,7 @@ from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple, polygon_face
 
 class SvgPath(list[SvgPathCommand]):
     def __str__(self) -> str:
-        return format_svg(self)
+        return format_svg_path(self)
 
 
 def wire_from_curves(*curves: Geom_Curve):
@@ -821,7 +822,7 @@ def test_fix_closing_lines_doc():
     for e, _ in find_shapes_svg_in_document(StringIO(svg_src)):
         path = svg_element_to_path(e)
         assert path
-        for segment in path:
+        for segment in path:  # type: ignore
             assert not isinstance(segment, svgelements.Line)
 
 
@@ -985,3 +986,18 @@ def svg_path_tokens(path: Union[SvgPath, str]):
             yield end
 
     return list(split_floats(str(path)))
+
+
+def test_format_svg_path():
+    assert format_svg_path([("M", 1, 2), ("L", 3.45, 6.78)]) == "M1,2 L3.45,6.78"
+
+
+def test_format_svg_path_number_format():
+    path: list[SvgPathCommand] = [("M", 1.0, 2.0), ("L", 3e-8, 4.56789123456789)]
+    assert format_svg_path(path, decimals=2) == "M1,2 L0,4.57"
+    assert format_svg_path(path, decimals=8) == "M1,2 L0.00000003,4.56789123"
+
+
+def test_format_svg_deprecated():
+    with pytest.warns(FutureWarning):
+        format_svg([("M", 1, 2), ("L", 3.45, 6.78)])
