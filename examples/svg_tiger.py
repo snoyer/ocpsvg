@@ -42,12 +42,12 @@ logging.info(
         for k, v in Counter(map(type, (o for o, _ in imported))).items()
     )
 )
-
-show_object = globals().get("show_object")
-if callable(show_object):
+try:
     for face_or_wire, color_and_label in imported:
-        show_object(
+        show_object(  # type: ignore
             face_or_wire,
             f"{color_and_label.label} #{id(face_or_wire):x}",
-            dict(color=color_and_label.color),
+            dict(color=color_and_label.color_for(face_or_wire)),
         )
+except NameError:  # no `show_object`
+    pass

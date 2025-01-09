@@ -139,7 +139,7 @@ class InvalidWiresForFace(ValueError):
     pass
 
 
-def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterable[TopoDS_Face]:
+def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterator[TopoDS_Face]:
     """Make faces from unorganized, possibly nested (but non-intersecting) wires."""
 
     wires = list(wires)
@@ -300,7 +300,7 @@ def circle_curve(
     start_angle: float = 360,
     end_angle: float = 360,
     *,
-    clockwise: bool = False,
+    reversed: bool = False,
     center: gp_Pnt = gp_Pnt(0, 0, 0),
     normal: gp_Dir = gp_Dir(0, 0, 1),
 ) -> Union[Geom_Circle, Geom_TrimmedCurve]:
@@ -310,7 +310,7 @@ def circle_curve(
         circle = GC_MakeCircle(circle_gp).Value()
     else:
         circle = GC_MakeArcOfCircle(
-            circle_gp, radians(start_angle), radians(end_angle), clockwise
+            circle_gp, radians(start_angle), radians(end_angle), reversed
         ).Value()
 
     trsf = gp_Trsf()

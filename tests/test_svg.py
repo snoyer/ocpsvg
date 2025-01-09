@@ -352,6 +352,25 @@ def test_path_regression3():
     assert len(face_inner_wires(faces[0])) == 3
 
 
+def test_path_issue20():
+    """This path used to not close properly, likely due to accumulated error with the relative commands."""
+    d = """
+    M 104.11876,56.934021
+    C 63.736597,56.737648 25.41552,85.182615 13.677255,126.80417
+    c -16.0876352,57.04356 23.474457,116.30107 80.550639,120.65207
+    5.762765,0.4393 20.717906,0.12691 23.944796,-0.50023
+    29.53134,-5.73943 50.78323,-20.45287 66.04713,-45.72692
+    4.31274,-7.14105 7.72319,-15.32478 10.39678,-24.94783
+    13.17482,-47.42016 -14.87779,-98.88564 -62.53934,-114.734601
+    -3.61363,-1.201644 -4.26535,-1.369129 -10.59728,-2.729549
+    -5.78154,-1.242168 -11.59234,-1.855036 -17.36122,-1.883089
+    z """
+    wires = list(wires_from_svg_path(d))
+    assert len(wires) == 1
+    assert is_valid(wires[0])
+    assert len(list(topoDS_iterator(wires[0]))) == 8
+
+
 def test_arcs_path_to_wire():
     """this continuous path introduces small discontinuities when making the edges"""
     res = list(
@@ -655,7 +674,7 @@ def test_svg_doc_metadata_legacy():
     </svg>
     """
     buf = StringIO(svg_src)
-    imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("class")))
+    imported = import_svg_document(buf, metadata=ColorAndLabel.Label_by("class"))
     assert [
         (metadata.label, metadata.color_for(shape)) for shape, metadata in imported
     ] == [
@@ -674,7 +693,7 @@ def test_svg_doc_metadata():
     </svg>
     """
     buf = StringIO(svg_src)
-    imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("class")))
+    imported = import_svg_document(buf, metadata=ColorAndLabel.Label_by("class"))
     assert [
         (metadata.label, metadata.color_for(shape)) for shape, metadata in imported
     ] == [
@@ -702,7 +721,8 @@ def test_svg_nested_use_metadata():
     </g>
     </svg>"""
     buf = StringIO(svg_src)
-    imported = list(import_svg_document(buf, metadata=ColorAndLabel.Label_by("id")))
+    imported = import_svg_document(buf, metadata=ColorAndLabel.Label_by("id"))
+    imported = list(imported)
 
     expected = (
         (("svg1", "main", "white_stroke", "two-circles", "blue_fill"), "circle"),
