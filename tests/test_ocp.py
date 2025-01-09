@@ -103,10 +103,10 @@ VARIOUS_CURVES: list[Geom_Curve] = [
     curve_to_bspline(
         bezier_curve(Pnt(0, 1), Pnt(23, 45), Pnt(66, 89), Pnt(101, 213), Pnt(141, 516))
     ),
-    circle_curve(12, clockwise=True),
-    circle_curve(12, clockwise=False),
-    circle_curve(12, 30, 210, clockwise=False),
-    circle_curve(12, 30, 210, clockwise=True),
+    circle_curve(12, reversed=True),
+    circle_curve(12, reversed=False),
+    circle_curve(12, 30, 210, reversed=False),
+    circle_curve(12, 30, 210, reversed=True),
     ellipse_curve(12, 34, clockwise=True),
     ellipse_curve(12, 34, clockwise=False),
     ellipse_curve(12, 34, 30, 210, clockwise=False),

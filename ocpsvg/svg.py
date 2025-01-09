@@ -269,7 +269,7 @@ class ColorAndLabel:
 ####
 
 
-def faces_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Face]:
+def faces_from_svg_path(path: SvgPathLike) -> Iterator[TopoDS_Face]:
     """Create faces from an SVG path.
 
     :param SvgPathLike path: input SVG path
@@ -280,7 +280,7 @@ def faces_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Face]:
     return faces_from_wire_soup(wires_from_svg_path(path))
 
 
-def wires_from_svg_element(element: ShapeElement) -> Iterable[TopoDS_Wire]:
+def wires_from_svg_element(element: ShapeElement) -> Iterator[TopoDS_Wire]:
     def check_unskewed_transform() -> Union[tuple[float, float, float], None]:
         o = svgelements.Point(0, 0) * element.transform
         x = svgelements.Point(1, 0) * element.transform
@@ -318,7 +318,7 @@ def svg_element_to_path(element: ShapeElement):
         return path
 
 
-def wires_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Wire]:
+def wires_from_svg_path(path: SvgPathLike) -> Iterator[TopoDS_Wire]:
     """Create wires from an SVG path.
 
     :param SvgPathLike path: input SVG path
@@ -331,7 +331,7 @@ def wires_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Wire]:
         yield wire_from_continuous_edges(edges, closed=closed)
 
 
-def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
+def edges_from_svg_path(path: SvgPathLike) -> Iterator[TopoDS_Edge]:
     """Create edges from an SVG path.
 
     :param SvgPathLike path: input SVG path
@@ -345,7 +345,7 @@ def edges_from_svg_path(path: SvgPathLike) -> Iterable[TopoDS_Edge]:
 
 def continuous_edges_from_svg_path(
     path: SvgPathLike,
-) -> Iterable[tuple[Iterable[TopoDS_Edge], bool]]:
+) -> Iterator[tuple[Iterable[TopoDS_Edge], bool]]:
     def p(c: Union[svgelements.Point, None]):
         if c is None:  # pragma: nocover
             logger.warning("found None point in %s", path)
@@ -431,7 +431,7 @@ def face_to_svg_path(
     use_quadratics: bool = True,
     use_arcs: bool = True,
     split_full_arcs: bool = True,
-) -> Iterable[SvgPathCommand]:
+) -> Iterator[SvgPathCommand]:
     for wire in topoDS_iterator(face):
         cmd = None
         for cmd in wire_to_svg_path(
@@ -457,7 +457,7 @@ def wire_to_svg_path(
     use_arcs: bool = True,
     split_full_arcs: bool = True,
     with_first_move: bool = True,
-) -> Iterable[SvgPathCommand]:
+) -> Iterator[SvgPathCommand]:
     edges = topoDS_iterator(wire)
     if is_reversed(wire):
         edges = reversed(list(edges))
@@ -485,7 +485,7 @@ def edge_to_svg_path(
     use_arcs: bool = True,
     split_full_arcs: bool = True,
     with_first_move: bool = True,
-) -> Iterable[SvgPathCommand]:
+) -> Iterator[SvgPathCommand]:
     return curve_to_svg_path(
         edge_to_curve(edge),
         tolerance=tolerance,
@@ -508,7 +508,7 @@ def curve_to_svg_path(
     split_full_arcs: bool = True,
     with_first_move: bool = True,
     reverse: bool = False,
-) -> Iterable[SvgPathCommand]:
+) -> Iterator[SvgPathCommand]:
     _curve, adaptor = curve_and_adaptor(curve_or_adaptor)
     curve_type = adaptor.GetType()
 
@@ -586,7 +586,7 @@ def ellipse_to_svg_path(
     with_first_move: bool = True,
     split_full_arcs: bool = True,
     reverse: bool = False,
-) -> Iterable[SvgPathCommand]:
+) -> Iterator[SvgPathCommand]:
     t0 = adaptor_curve.FirstParameter()
     t1 = adaptor_curve.LastParameter()
     if reverse:
@@ -622,7 +622,7 @@ def bezier_to_svg_path(
     use_quadratics: bool = True,
     with_first_move: bool = True,
     reverse: bool = False,
-) -> Iterable[SvgPathCommand]:
+) -> Iterator[SvgPathCommand]:
     degree = bezier.Degree()
 
     p0 = bezier.Pole(1)
@@ -674,7 +674,7 @@ def polyline_to_svg_path(
     with_first_move: bool = True,
     closed: bool = False,
     reverse: bool = False,
-) -> Iterable[SvgPathCommand]:
+) -> Iterator[SvgPathCommand]:
     points = list(points)
     if points:
         first, *others = reversed(points) if reverse else points
