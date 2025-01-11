@@ -573,6 +573,8 @@ def curve_to_svg_path(
             beziers = curve_to_beziers(
                 adaptor, tolerance=tolerance, max_degree=3 if use_cubics else 2
             )
+            if reverse:
+                beziers = reversed(list(beziers))
             for i, bezier in enumerate(beziers):
                 yield from bezier_to_svg_path(
                     bezier,
