@@ -9,10 +9,11 @@ from typing import Any, Sequence, Union
 
 import pytest
 import svgelements
+from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.GC import GC_MakeArcOfCircle
 from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse, Geom_TrimmedCurve
 from OCP.GeomAbs import GeomAbs_CurveType
-from OCP.gp import gp_Ax2, gp_Circ, gp_Pnt, gp_Vec
+from OCP.gp import gp_Ax2, gp_Circ, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
 
@@ -197,6 +198,22 @@ def test_trimmed_arc_to_cubics_reversed():
     )
     assert svg_with_arcs[0][-2:] == approx(svg_with_cubics_only[0][-2:])
     assert svg_with_arcs[-1][-2:] == approx(svg_with_cubics_only[-1][-2:])
+
+
+def test_arc_to_cubic_transformed():
+    edge = edge_from_curve(circle_curve(2))
+
+    t = gp_Trsf()
+    t.SetTranslationPart(gp_Vec(8, 4, 0))
+    transformed_edge = TopoDS.Edge_s(
+        BRepBuilderAPI_Transform(edge, t, False, False).Shape()
+    )
+
+    cmd1 = next(edge_to_svg_path(edge, tolerance=0.1, use_arcs=False))
+    cmd2 = next(edge_to_svg_path(transformed_edge, tolerance=0.1, use_arcs=False))
+    assert cmd1[0] == "M" and cmd2[0] == "M"
+    assert cmd2[1] == approx(cmd1[1] + 8)
+    assert cmd2[2] == approx(cmd1[2] + 4)
 
 
 @pytest.mark.parametrize(
