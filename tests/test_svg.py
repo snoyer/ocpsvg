@@ -9,9 +9,10 @@ from typing import Any, Sequence, Union
 
 import pytest
 import svgelements
+from OCP.GC import GC_MakeArcOfCircle
 from OCP.Geom import Geom_Circle, Geom_Curve, Geom_Ellipse, Geom_TrimmedCurve
 from OCP.GeomAbs import GeomAbs_CurveType
-from OCP.gp import gp_Pnt, gp_Vec
+from OCP.gp import gp_Ax2, gp_Circ, gp_Pnt, gp_Vec
 from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
 
@@ -33,6 +34,7 @@ from ocpsvg.svg import (
     SvgPathCommand,
     _SegmentInPath,  # type: ignore private usage
     bezier_to_svg_path,
+    curve_to_svg_path,
     edge_to_svg_path,
     edges_from_svg_path,
     face_to_svg_path,
@@ -157,6 +159,44 @@ def test_polyline_apprx(curve: Geom_Curve):
         )
     )
     assert set(seg[0] for seg in path).issubset(set("MLZ"))
+
+
+def test_trimmed_arc_to_cubics():
+    radius = 10
+    circ = gp_Circ(gp_Ax2(), radius)
+    trimmed_arc = GC_MakeArcOfCircle(
+        circ, gp_Pnt(-radius, 0, 0), gp_Pnt(0, +radius, 0), True
+    ).Value()
+
+    svg_with_arcs = list(curve_to_svg_path(trimmed_arc, tolerance=1e-6))
+    svg_with_cubics_only = list(
+        curve_to_svg_path(
+            trimmed_arc, use_arcs=False, use_quadratics=False, tolerance=1e-6
+        )
+    )
+    assert svg_with_arcs[0][-2:] == approx(svg_with_cubics_only[0][-2:])
+    assert svg_with_arcs[-1][-2:] == approx(svg_with_cubics_only[-1][-2:])
+
+
+def test_trimmed_arc_to_cubics_reversed():
+    radius = 10
+    circ = gp_Circ(gp_Ax2(), radius)
+    trimmed_arc = GC_MakeArcOfCircle(
+        circ, gp_Pnt(-radius, 0, 0), gp_Pnt(0, +radius, 0), True
+    ).Value()
+
+    svg_with_arcs = list(curve_to_svg_path(trimmed_arc, reverse=True, tolerance=1e-6))
+    svg_with_cubics_only = list(
+        curve_to_svg_path(
+            trimmed_arc,
+            reverse=True,
+            use_arcs=False,
+            use_quadratics=False,
+            tolerance=1e-6,
+        )
+    )
+    assert svg_with_arcs[0][-2:] == approx(svg_with_cubics_only[0][-2:])
+    assert svg_with_arcs[-1][-2:] == approx(svg_with_cubics_only[-1][-2:])
 
 
 @pytest.mark.parametrize(

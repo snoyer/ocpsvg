@@ -11,6 +11,7 @@ from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace
 from OCP.BRepFeat import BRepFeat
 from OCP.BRepLib import BRepLib_FindSurface
 from OCP.BRepTools import BRepTools
+from OCP.Convert import Convert_ParameterisationType
 from OCP.GC import (
     GC_MakeArcOfCircle,
     GC_MakeArcOfEllipse,
@@ -357,7 +358,7 @@ def ellipse_curve(
 
 
 def curve_to_bspline(curve: Geom_Curve) -> Geom_BSplineCurve:
-    return GeomConvert.CurveToBSplineCurve_s(curve)  # type: ignore
+    return GeomConvert.CurveToBSplineCurve_s(curve, Convert_ParameterisationType.Convert_RationalC1)  # type: ignore
 
 
 def curve_to_beziers(
@@ -399,8 +400,10 @@ def curve_to_beziers(
         )
 
     else:
+        bspline = curve_to_bspline(curve)
+        bspline.Segment(adaptor.FirstParameter(), adaptor.LastParameter())
         yield from bspline_to_beziers(
-            curve_to_bspline(curve),
+            bspline,
             max_degree=max_degree,
             max_segments=max_segments,
             tolerance=tolerance,
