@@ -402,6 +402,8 @@ def curve_to_beziers(
     else:
         bspline = curve_to_bspline(curve)
         bspline.Segment(adaptor.FirstParameter(), adaptor.LastParameter())
+        if isinstance(adaptor, BRepAdaptor_Curve):
+            bspline.Transform(adaptor.Trsf())
         yield from bspline_to_beziers(
             bspline,
             max_degree=max_degree,
