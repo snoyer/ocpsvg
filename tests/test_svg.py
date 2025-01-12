@@ -286,14 +286,14 @@ def test_arc_to_cubic_transformed():
         ),
         (
             extend_curve(ellipse_curve(8, 5, 90, 180, center=gp_Pnt(2, 4, 0)), 2, 3),
-            "M-6,4 L-6,2 A8,5,0,0,1,-6,4 L2,9",
+            "M5,9 L2,9 A8,5,0,0,1,-6,4 L-6,2",
             {},
         ),
         (
             extend_curve(
                 ellipse_curve(8, 5, 90, 180, center=gp_Pnt(2, 4, 0)), 2, 3
             ).Reversed(),
-            "M2,9 L5,9 A8,5,0,0,0,2,9 L-6,4",
+            "M-6,2 L-6,4 A8,5,0,0,0,2,9 L5,9",
             {},
         ),
     ],
