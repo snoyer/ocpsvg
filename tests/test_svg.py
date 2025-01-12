@@ -5,7 +5,7 @@ from io import StringIO
 from itertools import cycle
 from math import pi
 from tempfile import NamedTemporaryFile
-from typing import Any, Sequence, Union
+from typing import Any, Counter, Sequence, Union
 
 import pytest
 import svgelements
@@ -50,7 +50,7 @@ from ocpsvg.svg import (
     wires_from_svg_path,
 )
 
-from .ocp import face_area, face_normal, is_valid
+from .ocp import face_area, face_normal, is_valid, wire_via_BRepBuilderAPI
 from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple, polygon_face
 
 
@@ -216,6 +216,23 @@ def test_arc_to_cubic_transformed():
     assert cmd2[2] == approx(cmd1[2] + 4)
 
 
+def test_nonmanifold_wire():
+    #   D-----E-----F
+    #   |     |
+    #   A-----B-----C
+    D, E, F = (0, 1), (1, 1), (2, 1)
+    A, B, C = (0, 0), (1, 0), (2, 0)
+    segments = (A, B), (B, E), (E, D), (D, A), (B, C), (E, F)
+
+    wire = wire_via_BRepBuilderAPI(
+        edge_from_curve(segment_curve(*(gp_Pnt(x, y, 0) for x, y in segment)))
+        for segment in segments
+    )
+    cmd_counts = Counter(cmd[0] for cmd in wire_to_svg_path(wire, tolerance=1e-6))
+    assert cmd_counts["M"] > 1
+    # exact count is order-dependent and may be non-deterministic
+
+
 @pytest.mark.parametrize(
     "wire, svg_d, opts",
     [
@@ -299,7 +316,7 @@ def test_arc_to_cubic_transformed():
     ],
 )
 def test_wire_to_svg(wire: TopoDS_Wire, svg_d: str, opts: dict[str, Any]):
-    path = SvgPath(wire_to_svg_path(wire, tolerance=1e-5, **opts))
+    path = SvgPath(wire_to_svg_path(TopoDS.Wire_s(wire), tolerance=1e-5, **opts))
     assert svg_path_tokens(path) == approx(svg_path_tokens(svg_d), abs=1e-4), str(path)
 
 

@@ -10,7 +10,7 @@ from OCP.BRepBndLib import BRepBndLib
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace
 from OCP.BRepFeat import BRepFeat
 from OCP.BRepLib import BRepLib_FindSurface
-from OCP.BRepTools import BRepTools
+from OCP.BRepTools import BRepTools, BRepTools_WireExplorer
 from OCP.Convert import Convert_ParameterisationType
 from OCP.GC import (
     GC_MakeArcOfCircle,
@@ -98,6 +98,7 @@ def bounding_box(
 def topoDS_iterator(
     shape: TopoDS_Shape, with_orientation: bool = True, with_location: bool = True
 ) -> Iterator[TopoDS_Shape]:
+    """Iterate sub shapes with `TopoDS_Iterator`."""
     iterator = TopoDS_Iterator(shape, with_orientation, with_location)
     while iterator.More():
         yield iterator.Value()
@@ -254,6 +255,14 @@ def closed_wire(wire: TopoDS_Wire) -> TopoDS_Wire:
         wire = extend.WireAPIMake()
 
     return wire
+
+
+def wire_explorer(wire: TopoDS_Wire) -> Iterator[TopoDS_Edge]:
+    """Iterate edges with `BRepTools_WireExplorer`."""
+    explorer = BRepTools_WireExplorer(wire)
+    while explorer.More():
+        yield explorer.Current()
+        explorer.Next()
 
 
 #### edges
