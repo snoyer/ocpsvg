@@ -1,9 +1,13 @@
+from typing import Iterable
+
+from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
 from OCP.BRepCheck import BRepCheck_Analyzer
 from OCP.BRepGProp import BRepGProp, BRepGProp_Face
 from OCP.BRepTools import BRepTools
 from OCP.gp import gp_Pnt, gp_Vec
 from OCP.GProp import GProp_GProps
-from OCP.TopoDS import TopoDS_Face, TopoDS_Shape
+from OCP.TopoDS import TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
+from OCP.TopTools import TopTools_ListOfShape
 
 
 def face_area(face: TopoDS_Face):
@@ -28,3 +32,14 @@ def is_valid(shape: TopoDS_Shape):
     check = BRepCheck_Analyzer(shape)
     check.SetParallel(True)
     return check.IsValid()
+
+def wire_via_BRepBuilderAPI(edges: Iterable[TopoDS_Edge]) -> TopoDS_Wire:
+    """Make a wire using `BRepBuilderAPI_MakeWire.Wire`"""
+    makewire = BRepBuilderAPI_MakeWire()
+    edge_list = TopTools_ListOfShape()
+    for edge in edges:
+        edge_list.Append(edge)
+    makewire.Add(edge_list)
+    makewire.Build()  # type: ignore
+    return makewire.Wire()
+

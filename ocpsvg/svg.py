@@ -43,6 +43,7 @@ from .ocp import (
     is_reversed,
     segment_curve,
     topoDS_iterator,
+    wire_explorer,
     wire_from_continuous_edges,
 )
 
@@ -481,11 +482,11 @@ def wire_to_svg_path(
     split_full_arcs: bool = True,
     with_first_move: bool = True,
 ) -> Iterator[SvgPathCommand]:
-    edges = topoDS_iterator(wire)
-    if is_reversed(wire):
-        edges = reversed(list(edges))
+    # Storage order isn't guaranteed so wo need to use `BRepTools_WireExplorer` for ordering
+    # and regular `TopoDS_Iterator` to check that all edges have been visited.
+    ordered_edges = list(wire_explorer(wire))
 
-    return chain.from_iterable(
+    yield from chain.from_iterable(
         edge_to_svg_path(
             TopoDS.Edge_s(edge),
             tolerance=tolerance,
@@ -495,8 +496,37 @@ def wire_to_svg_path(
             split_full_arcs=split_full_arcs,
             with_first_move=with_first_move and i == 0,
         )
-        for i, edge in enumerate(edges)
+        for i, edge in enumerate(ordered_edges)
     )
+
+    # In the nominal case of nice wires we should be done here...
+    # but wires can be non-manifold or otherwise degenerate and may not have visit them all.
+    # We'll add remaining edges individually
+
+    # TODO use native hashcode when OCP 7.8 is out
+    MAX_HASHCODE = (1 << 31) - 1
+
+    def hashcode(shape: TopoDS_Shape):
+        return shape.HashCode(MAX_HASHCODE)
+
+    all_edges = {hashcode(e): e for e in map(TopoDS.Edge_s, topoDS_iterator(wire))}
+
+    if len(ordered_edges) < len(all_edges):
+        for e in ordered_edges:
+            all_edges.pop(hashcode(e))
+
+        yield from chain.from_iterable(
+            edge_to_svg_path(
+                TopoDS.Edge_s(edge),
+                tolerance=tolerance,
+                use_cubics=use_cubics,
+                use_quadratics=use_quadratics,
+                use_arcs=use_arcs,
+                split_full_arcs=split_full_arcs,
+                with_first_move=True,
+            )
+            for edge in all_edges.values()
+        )
 
 
 def edge_to_svg_path(
