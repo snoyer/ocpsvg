@@ -17,6 +17,18 @@ from OCP.gp import gp_Ax2, gp_Circ, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 from pytest import approx, raises
 
+from ocpsvg import (
+    curve_to_svg_path,
+    edge_to_svg_path,
+    edges_from_svg_path,
+    face_to_svg_path,
+    faces_from_svg_path,
+    format_svg,
+    format_svg_path,
+    import_svg_document,
+    wire_to_svg_path,
+    wires_from_svg_path,
+)
 from ocpsvg.ocp import (
     bezier_curve,
     bounding_box,
@@ -35,19 +47,9 @@ from ocpsvg.svg import (
     SvgPathCommand,
     _SegmentInPath,  # type: ignore private usage
     bezier_to_svg_path,
-    curve_to_svg_path,
-    edge_to_svg_path,
-    edges_from_svg_path,
-    face_to_svg_path,
-    faces_from_svg_path,
     find_shapes_svg_in_document,
-    format_svg,
-    format_svg_path,
-    import_svg_document,
     polyline_to_svg_path,
     svg_element_to_path,
-    wire_to_svg_path,
-    wires_from_svg_path,
 )
 
 from .ocp import face_area, face_normal, is_valid, wire_via_BRepBuilderAPI
