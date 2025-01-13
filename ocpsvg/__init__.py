@@ -10,6 +10,7 @@ from .svg import (
     face_to_svg_path,
     faces_from_svg_path,
     format_svg,
+    format_svg_path,
     import_svg_document,
     wire_to_svg_path,
     wires_from_svg_path,
