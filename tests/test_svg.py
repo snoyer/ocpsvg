@@ -232,7 +232,8 @@ def test_nonmanifold_wire():
     )
     cmd_counts = Counter(cmd[0] for cmd in wire_to_svg_path(wire, tolerance=1e-6))
     assert cmd_counts["M"] > 1
-    # exact count is order-dependent and may be non-deterministic
+    assert sum(cmd_counts.values()) < 12
+    # exact counts may be order-dependent and non-deterministic
 
 
 @pytest.mark.parametrize(

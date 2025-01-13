@@ -503,17 +503,12 @@ def wire_to_svg_path(
     # but wires can be non-manifold or otherwise degenerate and may not have visit them all.
     # We'll add remaining edges individually
 
-    # TODO use native hashcode when OCP 7.8 is out
-    MAX_HASHCODE = (1 << 31) - 1
-
-    def hashcode(shape: TopoDS_Shape):
-        return shape.HashCode(MAX_HASHCODE)
-
-    all_edges = {hashcode(e): e for e in map(TopoDS.Edge_s, topoDS_iterator(wire))}
+    #TODO use a set if/when OCP implements `__eq__`
+    all_edges = {hash(e): e for e in map(TopoDS.Edge_s, topoDS_iterator(wire))}
 
     if len(ordered_edges) < len(all_edges):
         for e in ordered_edges:
-            all_edges.pop(hashcode(e))
+            all_edges.pop(hash(e))
 
         yield from chain.from_iterable(
             edge_to_svg_path(
