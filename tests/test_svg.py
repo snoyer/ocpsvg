@@ -522,6 +522,22 @@ def test_faces_from_svg_path(svg_d: str, expected_count: int):
 
 
 @pytest.mark.parametrize(
+    "svg_d",
+    [
+        "M 0,0 v +10 h +10 v -10 z",
+        "M 0,0 v -10 h +10 v +10 z",
+        "M 0,0 v +10 h +10 v -10 z  M 2,2 v +6 h +6 v -6 z",
+        "M 0,0 v -10 h +10 v +10 z  M 2,2 v +6 h +6 v -6 z",
+        "M 0,0 v +10 h +10 v -10 z  M 2,2 v -6 h +6 v +6 z",
+        "M 0,0 v -10 h +10 v +10 z  M 2,2 v -6 h +6 v +6 z",
+    ],
+)
+def test_faces_from_svg_path_orientation(svg_d: str):
+    faces = faces_from_svg_path(svg_d)
+    assert all(face_normal(face).Z() > 0 for face in faces)
+
+
+@pytest.mark.parametrize(
     "svg_d, expected_count",
     [
         ("M 0,0 v 1 h 1", 2),

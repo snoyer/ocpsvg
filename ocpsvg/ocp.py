@@ -9,6 +9,7 @@ from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.BRepBndLib import BRepBndLib
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace
 from OCP.BRepFeat import BRepFeat
+from OCP.BRepGProp import BRepGProp_Face
 from OCP.BRepLib import BRepLib_FindSurface
 from OCP.BRepTools import BRepTools, BRepTools_WireExplorer
 from OCP.Convert import Convert_ParameterisationType
@@ -161,7 +162,7 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterator[TopoDS_Face]:
     faces = [BRepBuilderAPI_MakeFace(wire, True).Face() for wire in fix_wires()]
 
     if len(faces) < 2:
-        yield from faces
+        yield from map(ensure_face_normal_up, faces)
         return
 
     included_in: dict[int, set[int]] = {}
@@ -184,13 +185,22 @@ def faces_from_wire_soup(wires: Iterable[TopoDS_Wire]) -> Iterator[TopoDS_Face]:
 
     for outers, inners in outers_and_inners.values():
         if len(outers) == 1:
-            yield face_from_wires(outers[0], inners)
+            yield ensure_face_normal_up(face_from_wires(outers[0], inners))
         else:  # pragma: nocover
             # shouldn't ever get here
             # but yield everything as simple faces just in case
             logger.warning("invalid nesting (found %d outer wires)", len(outers))
             for path in chain(outers, inners):
-                yield face_from_wires(path)
+                yield ensure_face_normal_up(face_from_wires(path))
+
+
+def ensure_face_normal_up(face: TopoDS_Face):
+    u0, u1, v0, v1 = BRepTools.UVBounds_s(face)
+    normal = gp_Vec()
+    BRepGProp_Face(face).Normal((u0 + u1) / 2, (v0 + v1) / 2, gp_Pnt(), normal)
+    if normal.Z() < 0:
+        face.Reverse()
+    return face
 
 
 #### wires
