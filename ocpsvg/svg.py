@@ -13,6 +13,7 @@ from typing import (
     Optional,
     Sequence,
     TextIO,
+    TypeAlias,
     TypeVar,
     Union,
     overload,
@@ -109,11 +110,11 @@ def format_svg(path: Iterable[SvgPathCommand], float_format: str = "f") -> str:
     )
 
 
-SvgPathLike = Union[str, Iterable[SvgPathCommand], svgelements.Path]
-ShapeElement = svgelements.Shape
-ParentElement = Union[svgelements.Group, svgelements.Use]
+SvgPathLike: TypeAlias = Union[str, Iterable[SvgPathCommand], svgelements.Path]
+ShapeElement: TypeAlias = svgelements.Shape
+ParentElement: TypeAlias = Union[svgelements.Group, svgelements.Use]
 
-FaceOrWire = Union[TopoDS_Wire, TopoDS_Face]
+FaceOrWire: TypeAlias = Union[TopoDS_Wire, TopoDS_Face]
 
 
 class DocumentInfo(NamedTuple):
@@ -220,31 +221,31 @@ def import_svg_document(
             yield from wires
 
     if metadata:
-        wires_from_doc = wires_from_svg_document(
+        wires_from_doc_with_metadata = wires_from_svg_document(
             svg_file,
             ignore_visibility=ignore_visibility,
             metadata_factory=metadata,
         )
-        transform = doc_transform(wires_from_doc.doc_info)
+        transform = doc_transform(wires_from_doc_with_metadata.doc_info)
         items = (
-            (transform(face_or_wire), m)
-            for wires, is_filled, m in wires_from_doc
+            (transform(face_or_wire), metadata)
+            for wires, is_filled, metadata in wires_from_doc_with_metadata
             for face_or_wire in process_wire(wires, is_filled)
         )
-        return ItemsFromDocument(items, wires_from_doc.doc_info)
+        return ItemsFromDocument(items, wires_from_doc_with_metadata.doc_info)
     else:
-        wires_from_doc = wires_from_svg_document(
+        wires_from_doc_without_metadata = wires_from_svg_document(
             svg_file,
             ignore_visibility=ignore_visibility,
             metadata_factory=None,
         )
-        transform = doc_transform(wires_from_doc.doc_info)
+        transform = doc_transform(wires_from_doc_without_metadata.doc_info)
         items = (
             transform(face_or_wire)
-            for wires, is_filled, _metadata in wires_from_doc
+            for wires, is_filled, _metadata in wires_from_doc_without_metadata
             for face_or_wire in process_wire(wires, is_filled)
         )
-        return ItemsFromDocument(items, wires_from_doc.doc_info)
+        return ItemsFromDocument(items, wires_from_doc_without_metadata.doc_info)
 
 
 class ColorAndLabel:
@@ -274,6 +275,8 @@ class ColorAndLabel:
                 return tuple(float(v) / 255 for v in rgba)  # type: ignore
             except TypeError:
                 return 0, 0, 0, 1
+        else:
+            return None
 
     @staticmethod
     def _label(element: Union[ShapeElement, ParentElement], label_by: str):
@@ -312,6 +315,8 @@ def wires_from_svg_element(element: ShapeElement) -> Iterator[TopoDS_Wire]:
         is_skewed = abs(o.angle_to(y) - o.angle_to(x)) != pi / 2  # type: ignore
         if not is_skewed:
             return o.distance_to(x), o.distance_to(y), o.angle_to(x)  # type: ignore
+        else:
+            return None
 
     element.reify()
 
@@ -325,11 +330,12 @@ def wires_from_svg_element(element: ShapeElement) -> Iterator[TopoDS_Wire]:
         scale_x, scale_y, angle = scale_and_angle
         r1 = float(element.rx) * scale_x  # type: ignore
         r2 = float(element.ry) * scale_y  # type: ignore
-        if r1 == r2:
-            curve = circle_curve(r1, center=center)
-        else:
-            curve = ellipse_curve(r1, r2, center=center, rotation=degrees(angle))
-        yield wire_from_continuous_edges((edge_from_curve(curve),))
+        circle_or_ellpise = (
+            circle_curve(r1, center=center)
+            if r1 == r2
+            else ellipse_curve(r1, r2, center=center, rotation=degrees(angle))
+        )
+        yield wire_from_continuous_edges((edge_from_curve(circle_or_ellpise),))
 
     elif path := svg_element_to_path(element):
         yield from wires_from_svg_path(path)
@@ -503,7 +509,7 @@ def wire_to_svg_path(
     # but wires can be non-manifold or otherwise degenerate and may not have visit them all.
     # We'll add remaining edges individually
 
-    #TODO use a set if/when OCP implements `__eq__`
+    # TODO use a set if/when OCP implements `__eq__`
     all_edges = {hash(e): e for e in map(TopoDS.Edge_s, topoDS_iterator(wire))}
 
     if len(ordered_edges) < len(all_edges):
@@ -777,7 +783,7 @@ def wires_from_svg_document(
         return fill.value is not None  # type: ignore
 
     if callable(metadata_factory):
-        wires = (
+        wires_with_metadata = (
             (
                 list(wires_from_svg_element(source_element)),
                 is_filled(source_element),
@@ -785,9 +791,9 @@ def wires_from_svg_document(
             )
             for source_element, source_parents in elements
         )
-        return ItemsFromDocument(wires, elements.doc_info)
+        return ItemsFromDocument(wires_with_metadata, elements.doc_info)
     else:
-        wires = (
+        wires_without_metadata = (
             (
                 list(wires_from_svg_element(source_element)),
                 is_filled(source_element),
@@ -795,7 +801,7 @@ def wires_from_svg_document(
             )
             for source_element, _source_parents in elements
         )
-        return ItemsFromDocument(wires, elements.doc_info)
+        return ItemsFromDocument(wires_without_metadata, elements.doc_info)
 
 
 def find_shapes_svg_in_document(
@@ -806,7 +812,7 @@ def find_shapes_svg_in_document(
     def walk_svg_element(
         element: svgelements.SVGElement, parents: tuple[ParentElement, ...] = ()
     ) -> Iterator[tuple[ShapeElement, tuple[ParentElement, ...]]]:
-        if isinstance(element, ShapeElement):
+        if isinstance(element, svgelements.Shape):
             yield element, parents
         elif isinstance(element, (svgelements.Group, svgelements.Use)):
             new_parents = *parents, element

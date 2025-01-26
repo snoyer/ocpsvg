@@ -12,6 +12,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    TypeAlias,
     Union,
 )
 from xml.etree import ElementTree as ET
@@ -38,16 +39,16 @@ EDGE_TYPES_NAMES: dict[HLRBRep_TypeOfResultingEdge, HlrEdgeTypeName] = {
 }
 
 
-Padding = Union[
+Padding: TypeAlias = Union[
     float,
     tuple[float],
     tuple[float, float],
     tuple[float, float, float],
     tuple[float, float, float, float],
 ]
-CssStyle = Mapping[str, Mapping[str, Any]]
-RGB = tuple[float, float, float]
-EdgeColor = Union[RGB, tuple[RGB, RGB]]
+CssStyle: TypeAlias = Mapping[str, Mapping[str, Any]]
+RGB: TypeAlias = tuple[float, float, float]
+EdgeColor: TypeAlias = Union[RGB, tuple[RGB, RGB]]
 
 
 PRIMARY_EDGES = "sharp", "outline"
@@ -253,12 +254,12 @@ def basic_style(
 ) -> CssStyle:
     if secondary_linewidth is None:
         secondary_linewidth = linewidth * 0.75
-    color, hidden_color = _edge_color_pair(color)
+    visible_color, hidden_color = _edge_color_pair(color)
 
-    style = {
+    style: dict[str, dict[str, Union[str, float]]] = {
         "path": {
             "fill": "none",
-            "stroke": hexcolor(color),
+            "stroke": hexcolor(visible_color),
             "stroke-width": linewidth,
             "stroke-linecap": "round",
             "stroke-linejoin": "round",
@@ -278,8 +279,8 @@ def basic_style(
 
     if shape_colors:
         for i, color in shape_colors.items():
-            color, hidden_color = _edge_color_pair(color)
-            style[f".s{i}"] = {"stroke": hexcolor(color)}
+            visible_color, hidden_color = _edge_color_pair(color)
+            style[f".s{i}"] = {"stroke": hexcolor(visible_color)}
             style[f".s{i}.hidden"] = {"stroke": hexcolor(hidden_color)}
 
     return style
