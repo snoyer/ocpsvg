@@ -326,6 +326,7 @@ def circle_curve(
 ) -> Union[Geom_Circle, Geom_TrimmedCurve]:
     circle_gp = gp_Circ(gp_Ax2(gp_Pnt(), normal), radius)
 
+    circle: Union[Geom_Circle, Geom_TrimmedCurve]  # for mypy
     if start_angle == end_angle:
         circle = GC_MakeCircle(circle_gp).Value()
     else:
@@ -360,6 +361,7 @@ def ellipse_curve(
     ellipse_gp = gp_Elips(gp_Ax2(gp_Pnt(), normal), major_radius, minor_radius)
     ellipse_gp.Rotate(gp_Ax1(), radians(angle_adjustment))
 
+    ellipse: Union[Geom_Ellipse, Geom_TrimmedCurve]  # for mypy
     if start_angle == end_angle:
         ellipse = GC_MakeEllipse(ellipse_gp).Value()
     else:
