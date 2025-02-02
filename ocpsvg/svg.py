@@ -21,11 +21,11 @@ from typing import (
 
 import svgelements
 from OCP.BRepAdaptor import BRepAdaptor_Curve
-from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+from OCP.BRepBuilderAPI import BRepBuilderAPI_GTransform, BRepBuilderAPI_Transform
 from OCP.Geom import Geom_BezierCurve
 from OCP.GeomAbs import GeomAbs_CurveType
 from OCP.GeomAdaptor import GeomAdaptor_Curve
-from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+from OCP.gp import gp_Ax1, gp_Dir, gp_GTrsf, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.StdFail import StdFail_NotDone
 from OCP.TopoDS import TopoDS, TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Wire
 
@@ -318,27 +318,44 @@ def wires_from_svg_element(element: ShapeElement) -> Iterator[TopoDS_Wire]:
         else:
             return None
 
-    element.reify()
+    def transform_if_needed(wire: TopoDS_Wire):
+        if element.transform.is_identity():
+            return wire
+        elif check_unskewed_transform():
+            trsf = gp_Trsf()
+            trsf.SetValues(
+                *(element.transform.a, element.transform.c, 0.0, element.transform.e),  # type: ignore
+                *(element.transform.b, element.transform.d, 0.0, element.transform.f),  # type: ignore
+                *(0.0, 0.0, 1.0, 0.0),  # type: ignore
+            )
+            return TopoDS.Wire_s(BRepBuilderAPI_Transform(wire, trsf).Shape())
+        else:
+            gtrsf = gp_GTrsf()
+            gtrsf.SetValue(1, 1, element.transform.a)  # type: ignore
+            gtrsf.SetValue(2, 1, element.transform.b)  # type: ignore
+            gtrsf.SetValue(1, 2, element.transform.c)  # type: ignore
+            gtrsf.SetValue(2, 2, element.transform.d)  # type: ignore
+            gtrsf.SetValue(1, 4, element.transform.e)  # type: ignore
+            gtrsf.SetValue(1, 4, element.transform.f)  # type: ignore
+            return TopoDS.Wire_s(BRepBuilderAPI_GTransform(wire, gtrsf).Shape())
 
-    if isinstance(element, (svgelements.Circle, svgelements.Ellipse)) and (
-        scale_and_angle := check_unskewed_transform()
-    ):
+    if isinstance(element, (svgelements.Circle, svgelements.Ellipse)):
         cx = float(element.cx)  # type: ignore
         cy = float(element.cy)  # type: ignore
-        origin = svgelements.Point(cx, cy) * element.transform
-        center = gp_Pnt(origin.real, origin.imag, 0)  # type: ignore
-        scale_x, scale_y, angle = scale_and_angle
-        r1 = float(element.rx) * scale_x  # type: ignore
-        r2 = float(element.ry) * scale_y  # type: ignore
+        rx = float(element.rx)  # type: ignore
+        ry = float(element.ry)  # type: ignore
+        center = gp_Pnt(cx, cy, 0)
         circle_or_ellpise = (
-            circle_curve(r1, center=center)
-            if r1 == r2
-            else ellipse_curve(r1, r2, center=center, rotation=degrees(angle))
+            circle_curve(rx, center=center)
+            if rx == ry
+            else ellipse_curve(rx, ry, center=center)
         )
-        yield wire_from_continuous_edges((edge_from_curve(circle_or_ellpise),))
+        yield transform_if_needed(
+            wire_from_continuous_edges((edge_from_curve(circle_or_ellpise),))
+        )
 
     elif path := svg_element_to_path(element):
-        yield from wires_from_svg_path(path)
+        yield from map(transform_if_needed, wires_from_svg_path(path))
 
 
 def svg_element_to_path(element: ShapeElement):
