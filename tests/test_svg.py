@@ -979,7 +979,7 @@ def test_circles_and_ellipses(
     </svg>
     """
     buf = StringIO(svg_src)
-    imported = list(import_svg_document(buf))
+    imported = list(import_svg_document(buf, flip_y=False))
     assert len(imported) == 1
     assert isinstance(imported[0], TopoDS_Wire)
 
@@ -991,8 +991,36 @@ def test_circles_and_ellipses(
     curve = curves[0]
     assert type(curve) is curve_type
     assert isinstance(curve, (Geom_Circle, Geom_Ellipse))
-    loc = curve.Axis().Location()
-    assert (loc.X(), loc.Y()) == approx(center)
+    x0, y0, _, x1, y1, _ = bounding_box(imported[0]).Get()
+    assert ((x0 + x1) / 2, (y0 + y1) / 2) == approx(center)
+
+
+@pytest.mark.parametrize(
+    "element, svg_d",
+    [
+        (
+            'circle r="40" cx="1" cy="5" transform="skewX(25)"',
+            "M -15.320313,-35 A 50.39898,31.746674 38.437866 0 0 -36.667969,5 "
+            "50.39898,31.746674 38.437866 0 0 21.984375,45 50.39898,31.746674 "
+            "38.437866 0 0 43.332031,5 50.39898,31.746674 38.437866 0 0 -15.320313,-35 Z",
+        ),
+    ],
+)
+def test_skewed_circles_and_ellipses(element: str, svg_d: str):
+    svg_src = f"""
+    <svg xmlns="http://www.w3.org/2000/svg">
+        <{element} fill="none"/>
+        <path d="{svg_d}" fill="none"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+    imported = list(import_svg_document(buf, flip_y=False))
+    assert len(imported) == 2
+    assert isinstance(imported[0], TopoDS_Wire)
+    assert isinstance(imported[1], TopoDS_Wire)
+    bounds0 = bounding_box(imported[0]).Get()
+    bounds1 = bounding_box(imported[1]).Get()
+    assert bounds0 == approx(bounds1, abs=1e-3)
 
 
 @dataclass
