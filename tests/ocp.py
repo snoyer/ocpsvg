@@ -1,5 +1,6 @@
 from typing import Iterable
 
+from OCP.Bnd import Bnd_Box
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
 from OCP.BRepCheck import BRepCheck_Analyzer
 from OCP.BRepGProp import BRepGProp, BRepGProp_Face
@@ -33,6 +34,7 @@ def is_valid(shape: TopoDS_Shape):
     check.SetParallel(True)
     return check.IsValid()
 
+
 def wire_via_BRepBuilderAPI(edges: Iterable[TopoDS_Edge]) -> TopoDS_Wire:
     """Make a wire using `BRepBuilderAPI_MakeWire.Wire`"""
     makewire = BRepBuilderAPI_MakeWire()
@@ -43,3 +45,7 @@ def wire_via_BRepBuilderAPI(edges: Iterable[TopoDS_Edge]) -> TopoDS_Wire:
     makewire.Build()  # type: ignore
     return makewire.Wire()
 
+
+def bbox_center(bbox: Bnd_Box):
+    c = bbox.CornerMin().XYZ().Added(bbox.CornerMax().XYZ()).Divided(2)
+    return c.X(), c.Y(), c.Z()
