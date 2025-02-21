@@ -50,7 +50,7 @@ from .ocp import (
 
 __all__ = [
     "import_svg_document",
-    "DocumentInfo",
+    "ViewBox",
     "ColorAndLabel",
     "faces_from_svg_path",
     "wires_from_svg_path",
@@ -117,18 +117,20 @@ ParentElement: TypeAlias = Union[svgelements.Group, svgelements.Use]
 FaceOrWire: TypeAlias = Union[TopoDS_Wire, TopoDS_Face]
 
 
-class DocumentInfo(NamedTuple):
+class ViewBox(NamedTuple):
     width: float
     height: float
+    x: float
+    y: float
 
 
 T = TypeVar("T")
 
 
 class ItemsFromDocument(Iterable[T]):
-    def __init__(self, elements: Iterator[T], doc_info: DocumentInfo) -> None:
+    def __init__(self, elements: Iterator[T], viewbox: ViewBox) -> None:
         self.elements = elements
-        self.doc_info = doc_info
+        self.viewbox = viewbox
 
     def __iter__(self) -> Iterator[T]:
         return self.elements
@@ -188,13 +190,19 @@ def import_svg_document(
     :raises ValueError:
     """
 
-    def doc_transform(info: DocumentInfo):
-        mirror = gp_Trsf()
-        mirror.SetMirror(gp_Ax1(gp_Pnt(0, info.height / 2, 0), gp_Dir(1, 0, 0)))
+    def doc_transform(viewbox: ViewBox):
+        transform = gp_Trsf()
+        transform.SetTranslation(gp_Vec(viewbox.x, viewbox.y, 0))
 
-        def f_flip(shape: FaceOrWire) -> FaceOrWire:
-            mirrored = BRepBuilderAPI_Transform(shape, mirror, False, False).Shape()
-            mirrored.Reverse()
+        if flip_y:
+            mirror = gp_Trsf()
+            mirror.SetMirror(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)))
+            transform.PreMultiply(mirror)
+
+        def transform_f(shape: FaceOrWire) -> FaceOrWire:
+            mirrored = BRepBuilderAPI_Transform(shape, transform, False, False).Shape()
+            if flip_y:
+                mirrored.Reverse()
             if isinstance(shape, TopoDS_Face):
                 return TopoDS.Face_s(mirrored)
             elif isinstance(shape, TopoDS_Wire):
@@ -202,10 +210,14 @@ def import_svg_document(
             else:
                 raise AssertionError(f"somehow got unexpected shape {shape}")
 
-        def f_identity(shape: FaceOrWire) -> FaceOrWire:
-            return shape
+        return transform_f
 
-        return f_flip if flip_y else f_identity
+    def transform_viewbox(viewbox: ViewBox):
+        if flip_y:
+            w, h, x, y = viewbox
+            return ViewBox(w, h, x, -y - h)
+        else:
+            return viewbox
 
     def process_wire(
         wires: list[TopoDS_Wire],
@@ -226,26 +238,30 @@ def import_svg_document(
             ignore_visibility=ignore_visibility,
             metadata_factory=metadata,
         )
-        transform = doc_transform(wires_from_doc_with_metadata.doc_info)
+        transform = doc_transform(wires_from_doc_with_metadata.viewbox)
         items = (
             (transform(face_or_wire), metadata)
             for wires, is_filled, metadata in wires_from_doc_with_metadata
             for face_or_wire in process_wire(wires, is_filled)
         )
-        return ItemsFromDocument(items, wires_from_doc_with_metadata.doc_info)
+        return ItemsFromDocument(
+            items, transform_viewbox(wires_from_doc_with_metadata.viewbox)
+        )
     else:
         wires_from_doc_without_metadata = wires_from_svg_document(
             svg_file,
             ignore_visibility=ignore_visibility,
             metadata_factory=None,
         )
-        transform = doc_transform(wires_from_doc_without_metadata.doc_info)
+        transform = doc_transform(wires_from_doc_without_metadata.viewbox)
         items = (
             transform(face_or_wire)
             for wires, is_filled, _metadata in wires_from_doc_without_metadata
             for face_or_wire in process_wire(wires, is_filled)
         )
-        return ItemsFromDocument(items, wires_from_doc_without_metadata.doc_info)
+        return ItemsFromDocument(
+            items, transform_viewbox(wires_from_doc_without_metadata.viewbox)
+        )
 
 
 class ColorAndLabel:
@@ -808,7 +824,7 @@ def wires_from_svg_document(
             )
             for source_element, source_parents in elements
         )
-        return ItemsFromDocument(wires_with_metadata, elements.doc_info)
+        return ItemsFromDocument(wires_with_metadata, elements.viewbox)
     else:
         wires_without_metadata = (
             (
@@ -818,7 +834,7 @@ def wires_from_svg_document(
             )
             for source_element, _source_parents in elements
         )
-        return ItemsFromDocument(wires_without_metadata, elements.doc_info)
+        return ItemsFromDocument(wires_without_metadata, elements.viewbox)
 
 
 def find_shapes_svg_in_document(
@@ -866,8 +882,20 @@ def find_shapes_svg_in_document(
                     path.reify()
                     yield element, parents
 
-    doc_info = DocumentInfo(parsed_svg.width, parsed_svg.height)  # type: ignore
-    return ItemsFromDocument(elements(), doc_info)
+    if _possibly_problematic_svg_dimensions(parsed_svg):  # type: ignore
+        warnings.warn(
+            "position of SVG document with only one of `width` or `height` may be incorrect",
+            stacklevel=4,
+        )
+
+    width, height = _svg_dimensions(parsed_svg)  # type: ignore
+    if viewbox := parsed_svg.viewbox:  # type: ignore
+        x = float(viewbox.x * width / viewbox.width)  # type: ignore
+        y = float(viewbox.y * height / viewbox.height)  # type: ignore
+    else:
+        x = 0.0
+        y = 0.0
+    return ItemsFromDocument(elements(), ViewBox(width, height, x, y))
 
 
 def resolve_path(path: Union[pathlib.Path, str]) -> str:
@@ -897,3 +925,41 @@ def _continuous_subpaths(
         if subpath:
             is_closed = isinstance(subpath[-1], svgelements.Close)
             yield svgelements.Path(subpath), is_closed
+
+
+def _svg_dimensions(svg: svgelements.SVG):
+    has_width = "width" in svg.values  # type: ignore
+    has_height = "height" in svg.values  # type: ignore
+    box = svg.viewbox
+    if has_width and has_height:
+        return float(svg.width), float(svg.height)  # type: ignore
+    elif has_width and box:
+        return float(svg.width), float(box.height * svg.width / box.width)  # type: ignore
+    elif has_height and box:
+        return float(box.width * svg.height / box.height), float(svg.height)  # type: ignore
+    elif box:
+        return float(box.width), float(box.height)  # type: ignore
+    else:
+        return 0.0, 0.0
+
+
+def _possibly_problematic_svg_dimensions(parsed_svg: svgelements.SVG):
+    """`svgelements` doesn't fully deduce dimensions in some cases
+    where only one of `width` and `height` is specified.
+    """
+    viewbox = parsed_svg.viewbox  # type: ignore
+    if viewbox is None:
+        return False
+    attr_width = parsed_svg.values.get("width")  # type: ignore
+    attr_height = parsed_svg.values.get("height")  # type: ignore
+    has_absolute_width = bool(attr_width) and not str(attr_width).endswith("%")  # type: ignore
+    has_absolute_height = bool(attr_height) and not str(attr_height).endswith("%")  # type: ignore
+    return (
+        has_absolute_width
+        and not has_absolute_height
+        and float(parsed_svg.width) != float(viewbox.width)  # type: ignore
+    ) or (
+        has_absolute_height
+        and not has_absolute_width
+        and float(parsed_svg.height) != float(viewbox.height)  # type: ignore
+    )

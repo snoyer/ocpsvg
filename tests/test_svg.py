@@ -52,7 +52,7 @@ from ocpsvg.svg import (
     svg_element_to_path,
 )
 
-from .ocp import face_area, face_normal, is_valid, wire_via_BRepBuilderAPI
+from .ocp import bbox_center, face_area, face_normal, is_valid, wire_via_BRepBuilderAPI
 from .test_ocp import XY, Pnt, as_Pnt, as_Pnts, as_tuple, polygon_face
 
 
@@ -683,6 +683,49 @@ def test_svg_doc_orientation(flip_y: bool):
     for face in imported:
         assert isinstance(face, TopoDS_Face)
         assert as_tuple(face_normal(face)) == approx((0, 0, 1))
+
+
+@pytest.mark.parametrize(
+    "flip_y, doc_attrs, expected",
+    [
+        (
+            False,
+            'width="200" height="200" viewBox="-50 -25 200 200"',
+            [(0, 0), (10, 0), (0, 10)],
+        ),
+        (
+            True,
+            'width="200" height="200" viewBox="-50 -25 200 200"',
+            [(0, 0), (10, 0), (0, -10)],
+        ),
+        (False, 'width="200" height="200"', [(0, 0), (10, 0), (0, 10)]),
+        (True, 'width="200" height="200"', [(0, 0), (10, 0), (0, -10)]),
+        (False, 'viewBox="-50 -25 200 200"', [(0, 0), (10, 0), (0, 10)]),
+        (True, 'viewBox="-50 -25 200 200"', [(0, 0), (10, 0), (0, -10)]),
+        (False, 'height="200" viewBox="-50 -25 200 200"', [(0, 0), (10, 0), (0, 10)]),
+        (True, 'width="200" viewBox="-50 -25 200 200"', [(0, 0), (10, 0), (0, -10)]),
+    ],
+)
+def test_svg_doc_origin(
+    flip_y: bool,
+    doc_attrs: str,
+    expected: list[tuple[float, float, float]],
+):
+    svg_src = f"""
+    <svg xmlns="http://www.w3.org/2000/svg" {doc_attrs}>
+    <circle r="2" cx="0" cy="0" fill="white"/>
+    <circle r="6" cx="10" cy="0" fill="red"/>
+    <circle r="3" cx="0" cy="10" fill="blue"/>
+    </svg>
+    """
+    buf = StringIO(svg_src)
+
+    imported = list(import_svg_document(buf, flip_y=flip_y))
+
+    assert len(imported) == 3
+    assert bbox_center(bounding_box(imported[0]))[:2] == approx(expected[0])
+    assert bbox_center(bounding_box(imported[1]))[:2] == approx(expected[1])
+    assert bbox_center(bounding_box(imported[2]))[:2] == approx(expected[2])
 
 
 @pytest.mark.parametrize("flip_y", [False, True])

@@ -1,9 +1,9 @@
 from .svg import (
     ColorAndLabel,
-    DocumentInfo,
     ParentElement,
     ShapeElement,
     SvgPathCommand,
+    ViewBox,
     curve_to_svg_path,
     edge_to_svg_path,
     edges_from_svg_path,
