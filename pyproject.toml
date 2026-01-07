@@ -2,10 +2,10 @@
 [project]
 name = "ocpsvg"
 readme = "readme-pypi.md"
-version = "0.5.0"
+version = "0.6.0"
 requires-python = ">=3.10"
 dependencies = [
-    "cadquery-ocp >= 7.8.1, < 7.9.0",
+    "cadquery-ocp-proxy >= 7.9, < 8.0",
     "svgelements >= 1.9.1, <2",
 ]
 
