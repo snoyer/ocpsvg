@@ -143,8 +143,8 @@ class HiddenLineRenderer:
                     yield HlrEdge(
                         type=type,
                         is_hidden=not is_visible,
-                        projected_edge=TopoDS.Edge_s(edge_in_2d),
-                        edge_in_3d=TopoDS.Edge_s(edge_in_3d),
+                        projected_edge=TopoDS.Edge(edge_in_2d),
+                        edge_in_3d=TopoDS.Edge(edge_in_3d),
                         shape_index=shape_index,
                     )
 

@@ -204,9 +204,9 @@ def import_svg_document(
             if flip_y:
                 mirrored.Reverse()
             if isinstance(shape, TopoDS_Face):
-                return TopoDS.Face_s(mirrored)
+                return TopoDS.Face(mirrored)
             elif isinstance(shape, TopoDS_Wire):
-                return TopoDS.Wire_s(mirrored)
+                return TopoDS.Wire(mirrored)
             else:
                 raise AssertionError(f"somehow got unexpected shape {shape}")
 
@@ -344,7 +344,7 @@ def wires_from_svg_element(element: ShapeElement) -> Iterator[TopoDS_Wire]:
                 *(element.transform.b, element.transform.d, 0.0, element.transform.f),  # type: ignore
                 *(0.0, 0.0, 1.0, 0.0),  # type: ignore
             )
-            return TopoDS.Wire_s(BRepBuilderAPI_Transform(wire, trsf).Shape())
+            return TopoDS.Wire(BRepBuilderAPI_Transform(wire, trsf).Shape())
         else:
             gtrsf = gp_GTrsf()
             gtrsf.SetValue(1, 1, element.transform.a)  # type: ignore
@@ -353,7 +353,7 @@ def wires_from_svg_element(element: ShapeElement) -> Iterator[TopoDS_Wire]:
             gtrsf.SetValue(2, 2, element.transform.d)  # type: ignore
             gtrsf.SetValue(1, 4, element.transform.e)  # type: ignore
             gtrsf.SetValue(1, 4, element.transform.f)  # type: ignore
-            return TopoDS.Wire_s(BRepBuilderAPI_GTransform(wire, gtrsf).Shape())
+            return TopoDS.Wire(BRepBuilderAPI_GTransform(wire, gtrsf).Shape())
 
     if isinstance(element, (svgelements.Circle, svgelements.Ellipse)):
         cx = float(element.cx)  # type: ignore
@@ -498,7 +498,7 @@ def face_to_svg_path(
     for wire in topoDS_iterator(face):
         cmd = None
         for cmd in wire_to_svg_path(
-            TopoDS.Wire_s(wire),
+            TopoDS.Wire(wire),
             tolerance=tolerance,
             use_cubics=use_cubics,
             use_quadratics=use_quadratics,
@@ -527,7 +527,7 @@ def wire_to_svg_path(
 
     yield from chain.from_iterable(
         edge_to_svg_path(
-            TopoDS.Edge_s(edge),
+            TopoDS.Edge(edge),
             tolerance=tolerance,
             use_cubics=use_cubics,
             use_quadratics=use_quadratics,
@@ -543,7 +543,7 @@ def wire_to_svg_path(
     # We'll add remaining edges individually
 
     # TODO use a set if/when OCP implements `__eq__`
-    all_edges = {hash(e): e for e in map(TopoDS.Edge_s, topoDS_iterator(wire))}
+    all_edges = {hash(e): e for e in map(TopoDS.Edge, topoDS_iterator(wire))}
 
     if len(ordered_edges) < len(all_edges):
         for e in ordered_edges:
@@ -551,7 +551,7 @@ def wire_to_svg_path(
 
         yield from chain.from_iterable(
             edge_to_svg_path(
-                TopoDS.Edge_s(edge),
+                TopoDS.Edge(edge),
                 tolerance=tolerance,
                 use_cubics=use_cubics,
                 use_quadratics=use_quadratics,

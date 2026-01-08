@@ -121,7 +121,7 @@ def face_outer_wire(face: TopoDS_Face) -> TopoDS_Wire:
 def face_inner_wires(face: TopoDS_Face) -> list[TopoDS_Wire]:
     """Find the inner wires of a face."""
     outer = face_outer_wire(face)
-    return [TopoDS.Wire_s(w) for w in topoDS_iterator(face) if not w.IsSame(outer)]
+    return [TopoDS.Wire(w) for w in topoDS_iterator(face) if not w.IsSame(outer)]
 
 
 def face_from_wires(
@@ -252,10 +252,10 @@ def closed_wire(wire: TopoDS_Wire) -> TopoDS_Wire:
         # wire has no edges
         return wire
 
-    adaptor = BRepAdaptor_Curve(TopoDS.Edge_s(first_edge))
+    adaptor = BRepAdaptor_Curve(TopoDS.Edge(first_edge))
     start = adaptor.Value(adaptor.FirstParameter())
 
-    adaptor = BRepAdaptor_Curve(TopoDS.Edge_s(last_edge))
+    adaptor = BRepAdaptor_Curve(TopoDS.Edge(last_edge))
     end = adaptor.Value(adaptor.LastParameter())
 
     if not start.IsEqual(end, _TOLERANCE):

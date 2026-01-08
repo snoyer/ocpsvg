@@ -207,7 +207,7 @@ def test_arc_to_cubic_transformed():
 
     t = gp_Trsf()
     t.SetTranslationPart(gp_Vec(8, 4, 0))
-    transformed_edge = TopoDS.Edge_s(
+    transformed_edge = TopoDS.Edge(
         BRepBuilderAPI_Transform(edge, t, False, False).Shape()
     )
 
@@ -319,7 +319,7 @@ def test_nonmanifold_wire():
     ],
 )
 def test_wire_to_svg(wire: TopoDS_Wire, svg_d: str, opts: dict[str, Any]):
-    path = SvgPath(wire_to_svg_path(TopoDS.Wire_s(wire), tolerance=1e-5, **opts))
+    path = SvgPath(wire_to_svg_path(TopoDS.Wire(wire), tolerance=1e-5, **opts))
     assert svg_path_tokens(path) == approx(svg_path_tokens(svg_d), abs=1e-4), str(path)
 
 
@@ -982,7 +982,7 @@ def test_fix_closing_lines_str():
     )
     for wire in wires_from_svg_path(d):
         for edge in topoDS_iterator(wire):
-            curve = edge_to_curve(TopoDS.Edge_s(edge))
+            curve = edge_to_curve(TopoDS.Edge(edge))
             assert curve.GetType() != GeomAbs_CurveType.GeomAbs_Line
 
 
@@ -1027,7 +1027,7 @@ def test_circles_and_ellipses(
     assert isinstance(imported[0], TopoDS_Wire)
 
     curves = [
-        edge_to_curve(TopoDS.Edge_s(e)).Curve().Curve()
+        edge_to_curve(TopoDS.Edge(e)).Curve().Curve()
         for e in topoDS_iterator(imported[0])
     ]
     assert len(curves) == 1
