@@ -2,17 +2,18 @@
 [project]
 name = "ocpsvg"
 readme = "readme-pypi.md"
-version = "0.6.0"
+version = "0.7.0"
 requires-python = ">=3.10"
 dependencies = [
-    "cadquery_ocp_proxy >= 7.9, < 8.0",
+    "cadquery_ocp_proxy >= 8.0, < 9.0",
     "svgelements >= 1.9.1, <2",
 ]
 
 
 [project.optional-dependencies]
 dev = [
-    "cadquery_ocp_novtk >=7.9, < 8.0",
+    "cadquery_ocp_novtk >= 8.0, < 9.0",
+    "cadquery-ocp-stubs >= 8.0, < 9.0",
     "pytest",
     "coverage",
     "mypy",

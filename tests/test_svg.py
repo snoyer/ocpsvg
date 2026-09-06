@@ -32,6 +32,7 @@ from ocpsvg import (
 from ocpsvg.ocp import (
     bezier_curve,
     bounding_box,
+    bounding_box_bounds,
     circle_curve,
     edge_from_curve,
     edge_to_curve,
@@ -1034,7 +1035,7 @@ def test_circles_and_ellipses(
     curve = curves[0]
     assert type(curve) is curve_type
     assert isinstance(curve, (Geom_Circle, Geom_Ellipse))
-    x0, y0, _, x1, y1, _ = bounding_box(imported[0]).Get()
+    x0, y0, _, x1, y1, _ = bounding_box_bounds(imported[0])
     assert ((x0 + x1) / 2, (y0 + y1) / 2) == approx(center)
 
 
@@ -1061,8 +1062,8 @@ def test_skewed_circles_and_ellipses(element: str, svg_d: str):
     assert len(imported) == 2
     assert isinstance(imported[0], TopoDS_Wire)
     assert isinstance(imported[1], TopoDS_Wire)
-    bounds0 = bounding_box(imported[0]).Get()
-    bounds1 = bounding_box(imported[1]).Get()
+    bounds0 = bounding_box_bounds(imported[0])
+    bounds1 = bounding_box_bounds(imported[1])
     assert bounds0 == approx(bounds1, abs=1e-3)
 
 
