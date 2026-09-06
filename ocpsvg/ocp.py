@@ -36,6 +36,7 @@ from OCP.GeomConvert import (
     GeomConvert_ApproxCurve,
     GeomConvert_BSplineCurveToBezierCurve,
 )
+from OCP.collections import Array1_gp_Pnt
 from OCP.gp import (
     gp_Ax1,
     gp_Ax2,
@@ -50,7 +51,6 @@ from OCP.ShapeExtend import ShapeExtend_WireData
 from OCP.ShapeFix import ShapeFix_Face
 from OCP.Standard import Standard_Failure
 from OCP.StdFail import StdFail_NotDone
-from OCP.TColgp import TColgp_Array1OfPnt
 from OCP.TopAbs import TopAbs_Orientation
 from OCP.TopoDS import (
     TopoDS,
@@ -84,7 +84,7 @@ def make_compound(shapes: Iterable[TopoDS_Shape]) -> TopoDS_Compound:
 
 
 def bounding_box(
-    shape_or_shapes: Union[TopoDS_Shape, Iterable[TopoDS_Shape]]
+    shape_or_shapes: Union[TopoDS_Shape, Iterable[TopoDS_Shape]],
 ) -> Bnd_Box:
     bbox = Bnd_Box()
     for shape in (
@@ -94,6 +94,19 @@ def bounding_box(
     ):
         BRepBndLib.AddOptimal_s(shape, bbox)
     return bbox
+
+
+def bounding_box_bounds(shape: TopoDS_Shape):
+    """`(xmin, ymin, zmin, xmax, ymax, zmax)` of a shape's bounding box."""
+    bbox = bounding_box(shape)
+    return (
+        bbox.GetXMin(),
+        bbox.GetYMin(),
+        bbox.GetZMin(),
+        bbox.GetXMax(),
+        bbox.GetYMax(),
+        bbox.GetZMax(),
+    )
 
 
 def topoDS_iterator(
@@ -308,7 +321,7 @@ def bezier_curve(*controls: gp_Pnt) -> Geom_BezierCurve:
             f"bezier curve must have between 2 and {BEZIER_MAX_DEGREE} control points"
         )
 
-    poles = TColgp_Array1OfPnt(1, n)
+    poles = Array1_gp_Pnt(1, n)
     for i, control in enumerate(controls, 1):
         poles.SetValue(i, control)
 
