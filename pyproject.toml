@@ -3,7 +3,7 @@
 name = "ocpsvg"
 readme = "readme-pypi.md"
 version = "0.7.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "cadquery_ocp_proxy >= 8.0, < 9.0",
     "svgelements >= 1.9.1, <2",
@@ -25,7 +25,7 @@ requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
